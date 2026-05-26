@@ -184,13 +184,19 @@ const server = new Server(
       "── SAVING DATA TO MAC ───────────────────────────────────────────────────\n\n" +
       "RULE #1 FOR FILE WRITES: bash CANNOT write to the Mac filesystem. " +
       "Any cp, mv, tee, echo >, or open() in bash targeting /Users/... or ~/... will fail with FileNotFoundError or permission denied. " +
-      "This is a hard sandbox boundary — bash runs in an isolated container with no access to Mac disk.\n" +
-      "ALWAYS use save_to_mac instead:\n" +
-      "  • Synthesized JSON, CSV, Markdown, or plain text built from API responses → save_to_mac\n" +
-      "  • Aggregated results from multiple tool calls → save_to_mac\n" +
+      "This is a hard sandbox boundary — bash runs in an isolated container with no access to Mac disk.\n\n" +
+      "RULE #2 — WORKFLOW OUTPUTS (oss:// URLs) MUST NEVER BE READ THEN RE-SAVED:\n" +
+      "  If the user wants a workflow output file saved locally, call get_result(oss_url=..., save_to='<folder>') in ONE call.\n" +
+      "  DO NOT call get_result to read the content, then pass it to save_to_mac. That double-handles data, can exceed 1MB, and is slow.\n" +
+      "  DO NOT parse, reassemble, or summarise the JSON before saving it. The file is already complete in OSS.\n" +
+      "  Correct pattern: get_result(oss_url='oss://...', save_to='~/Downloads/Test output/', save_filename='result.json')\n\n" +
+      "RULE #3 — save_to_mac is ONLY for content Claude generated itself:\n" +
+      "  • A summary or report Claude wrote → save_to_mac\n" +
+      "  • Aggregated text built from multiple tool call responses → save_to_mac\n" +
       "  • Any file you would otherwise write with bash → save_to_mac\n" +
-      "  • Binary/OSS outputs (PDF, DWG, RVT) → get_result(save_to=...) or get_download_link\n" +
-      "Do NOT use bash for any file write. Do NOT use present_files as a workaround. Use save_to_mac.",
+      "  • Workflow/OSS outputs → NEVER save_to_mac. Use get_result(save_to=...) instead.\n" +
+      "  • Binary/OSS outputs (PDF, DWG, RVT, JSON from workflow) → get_result(save_to=...) or get_download_link\n" +
+      "Do NOT use bash for any file write. Do NOT use present_files as a workaround.",
   }
 );
 
