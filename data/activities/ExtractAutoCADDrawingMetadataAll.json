@@ -3,7 +3,7 @@
   "description": "Run all 7 metadata extractions in a single DWG open/close pass. Outputs a combined result.json keyed by operationId: drawingStatistics, symbolTableInventory, layoutData, projectCustomProperties, drawingHistory, layerTable, xrefList.",
   "engine": "Autodesk.AutoCAD+26_0",
   "commandLine": [
-    "$(engine.path)\\accoreconsole.exe /i \"$(args[inputFile].path)\" /al \"$(appbundles[ExtractAutoCADDrawingMetadata].path)\" /s \"$(settings[script].path)\""
+    "$(engine.path)\\accoreconsole.exe /i \"$(args[inputFile].path)\" /al \"$(appbundles[AutoCADDrawingMetadataExtractor].path)\" /s \"$(settings[script].path)\""
   ],
   "parameters": {
     "inputFile": {
@@ -16,7 +16,7 @@
       "description": "Combined extraction result. Top-level keys: drawingStatistics, symbolTableInventory, layoutData, projectCustomProperties, drawingHistory, layerTable, xrefList."
     }
   },
-  "appbundles": ["{NICKNAME}.ExtractAutoCADDrawingMetadata+prod"],
+  "appbundles": ["{NICKNAME}.AutoCADDrawingMetadataExtractor+prod"],
   "settings": {
     "script": {
       "data": "ExtractAllDrawingMetadata\n"
