@@ -8,9 +8,31 @@ const OSS_BASE = "https://developer.api.autodesk.com/oss/v2";
 
 export interface WorkItemArgument {
   url: string;
-  verb: "get" | "put" | "patch";
+  verb: "get" | "put" | "post" | "patch" | "read";
   optional?: boolean;
   headers?: Record<string, string>;
+}
+
+// ── DA Nickname ───────────────────────────────────────────────────────────
+
+// One lookup per client_id per process lifetime — nickname never changes.
+const nicknameCache = new Map<string, string>();
+
+export async function getNickname(token: string, clientId: string): Promise<string> {
+  const cached = nicknameCache.get(clientId);
+  if (cached) return cached;
+  try {
+    const res = await fetch(`${DA_BASE}/forgeapps/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return clientId; // fall back silently — better than blocking execution
+    const json = (await res.json()) as { nickname?: string; id?: string };
+    const nickname = json.nickname ?? json.id ?? clientId;
+    nicknameCache.set(clientId, nickname);
+    return nickname;
+  } catch {
+    return clientId;
+  }
 }
 
 export interface WorkItemResult {

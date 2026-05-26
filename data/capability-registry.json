@@ -2,15 +2,15 @@
   "registry": "Capability Registry",
   "schemaVersion": "1.9.6-rest",
   "generatedAt": "2026-05-19T18:22:33.411Z",
-  "patchedAt": "2026-05-26T01:19:38Z",
-  "patchNotes": "v1.9.7 — Added 4 PUBLIC ACTIVITIES capability groups (AutoCAD, Revit, 3dsMax, Inventor) with 13 Autodesk-published public activities: AutoCAD.PlotToPDF+prod, AutoCAD.AcSvfPublish+prod, AutoCAD.AcF2dPublish+prod, AutoCAD.AcLMVPublish+prod, Autodesk.Nop+Latest, Revit.RvtIOSketchItActivity2018+prod, Revit.RvtIOSandboxTestActivity2018+prod, 3dsMax.bakeToTexture+Latest, 3dsMax.HelloWorld+Latest, Inventor.ChangeParams+prod, Inventor.iLogic_Volume2020+prod, Inventor.Configuration+Beta, Inventor.BasicPluginTest+prod. All marked callable=true with workItemTemplate. PlotToPDF and Nop args VERIFIED; others marked NEEDS_LIVE_VERIFICATION.",
+  "patchedAt": "2026-05-26T01:45:01Z",
+  "patchNotes": "v1.9.7 — Added 4 PUBLIC ACTIVITIES capability groups (AutoCAD, Revit, 3dsMax, Inventor) with 13 Autodesk-published public activities: AutoCAD.PlotToPDF+prod, AutoCAD.AcSvfPublish+prod, AutoCAD.AcF2dPublish+prod, AutoCAD.AcLMVPublish+prod, Autodesk.Nop+Latest, Revit.RvtIOSketchItActivity2018+prod, Revit.RvtIOSandboxTestActivity2018+prod, 3dsMax.bakeToTexture+Latest, 3dsMax.HelloWorld+Latest, Inventor.ChangeParams+prod, Inventor.iLogic_Volume2020+prod, Inventor.Configuration+Beta, Inventor.BasicPluginTest+prod. All marked callable=true with workItemTemplate. PlotToPDF and Nop args VERIFIED; others marked NEEDS_LIVE_VERIFICATION.\n[v2 patch] Removed 11 stale 404 activities (AcSvf,AcF2d,AcLMV,RevitSketchIt,RevitSandboxTest,InventorChangeParams,InventorILogicVolume,InventorConfiguration,InventorBasicPluginTest,3dsMaxBakeToTexture,3dsMaxHelloWorld). Removed empty Revit+Inventor public-activities groups. Fixed PlotToPDF Result verb put→post. Added: AutoCAD.PlotSheetsetToPDF+prod, 3dsMax.UVUnwrapMesh+prod/+latest, 3dsMax.OpenNetworkTests+Latest, Fusion.ScriptJob+Latest, Fusion.ScriptBundleJob+Latest, Autodesk.Long/ReportZip/VarArg* test utilities. All entries verified against live DA API (2026-05-25).",
   "summary": {
     "domains": 5,
     "engines": 5,
     "apis": 24,
     "capabilityGroups": 144,
-    "capabilities": 273,
-    "operations": 1375,
+    "capabilities": 275,
+    "operations": 1377,
     "risk": {
       "SAFE": 531,
       "REVIEW": 818,
@@ -50,24 +50,24 @@
     },
     "byProduct": {
       "AutoCAD": {
-        "capabilities": 33,
-        "operations": 205
+        "capabilities": 38,
+        "operations": 210
       },
       "Revit": {
         "capabilities": 36,
-        "operations": 182
+        "operations": 183
       },
       "Fusion": {
-        "capabilities": 30,
-        "operations": 188
+        "capabilities": 32,
+        "operations": 190
       },
       "Inventor": {
-        "capabilities": 45,
-        "operations": 223
+        "capabilities": 41,
+        "operations": 219
       },
       "3dsMax": {
-        "capabilities": 11,
-        "operations": 46
+        "capabilities": 12,
+        "operations": 47
       },
       "Autodesk Forma": {
         "capabilities": 4,
@@ -6700,8 +6700,8 @@
               "defaultConfigTemplate": null,
               "defaultWorkItemTemplate": "workitem.autodesk.public",
               "note": "Autodesk-published activities. No custom AppBundle required. Call activityId directly in WorkItem.",
-              "capabilityCount": 4,
-              "operationCount": 4,
+              "capabilityCount": 2,
+              "operationCount": 2,
               "capabilities": [
                 {
                   "id": "autocad:AutoCADPlotToPDF",
@@ -6785,7 +6785,7 @@
                           },
                           "Result": {
                             "url": "{signed-output-url}",
-                            "verb": "put"
+                            "verb": "post"
                           }
                         }
                       }
@@ -6793,34 +6793,34 @@
                   ]
                 },
                 {
-                  "id": "autocad:AutoCADAcSvfPublish",
-                  "alias": "AutoCADAcSvfPublish",
-                  "qualifiedName": "com.autodesk.public.autocad.AutoCADAcSvfPublish",
+                  "id": "autocad:AutoCADPlotSheetsetToPDF",
+                  "alias": "AutoCADPlotSheetsetToPDF",
+                  "qualifiedName": "com.autodesk.public.autocad.AutoCADPlotSheetsetToPDF",
                   "version": "1.0.0",
                   "product": "AutoCAD",
                   "groupId": "autocad:public-activities",
-                  "engine": "Autodesk.AutoCAD+23, +24, +25",
+                  "engine": "Autodesk.AutoCAD+26_0",
                   "risk": "SAFE",
-                  "ioShape": "sourceFile.dwg → output.svf.zip",
-                  "activityRef": "AutoCAD.AcSvfPublish+prod",
+                  "ioShape": "sheetset.zip → result.pdf",
+                  "activityRef": "AutoCAD.PlotSheetsetToPDF+prod",
                   "accessPattern": "DA-PublicActivity",
                   "runtimeRouting": {
                     "supportsMultipleOperations": false
                   },
                   "contract": {
                     "identity": {
-                      "name": "AutoCAD AcSvfPublish",
+                      "name": "AutoCAD Plot Sheetset to PDF",
                       "group": "public-activities",
                       "scope": "Autodesk Public Activity"
                     },
                     "io": {
-                      "input": "sourceFile.dwg",
-                      "output": "output.svf.zip"
+                      "input": "sheetset.zip",
+                      "output": "result.pdf"
                     },
                     "execution": {
                       "accessPattern": "DA-PublicActivity",
-                      "interface": "Autodesk.AutoCAD+23, +24, +25",
-                      "activityRef": "AutoCAD.AcSvfPublish+prod",
+                      "interface": "Autodesk.AutoCAD+26_0",
+                      "activityRef": "AutoCAD.PlotSheetsetToPDF+prod",
                       "note": "No custom AppBundle required — Autodesk-published activity called directly."
                     },
                     "governance": {
@@ -6836,7 +6836,7 @@
                       "discovery": "get_capability() → Registry match"
                     }
                   },
-                  "description": "Translate a DWG to SVF (Streaming Vector Format) for display in the Autodesk Viewer. Autodesk-published public activity; no custom AppBundle required. Arg names require live-API verification.",
+                  "description": "Publish an entire sheetset to PDF. Input is a zipped sheetset; output is result.pdf. Uses AutoCAD's native _publishsheetset pipeline.",
                   "apiId": "engine:AutoCAD",
                   "capabilityGroupId": "autocad:public-activities",
                   "authFlows": [
@@ -6844,74 +6844,175 @@
                   ],
                   "operations": [
                     {
-                      "operationId": "publish-dwg-to-svf",
-                      "displayName": "Publish DWG to SVF",
-                      "description": "Translate a DWG file to SVF format for consumption by the APS Viewer SDK.",
-                      "capabilityId": "autocad:AutoCADAcSvfPublish",
+                      "operationId": "autocadplotsheetsettopdf",
+                      "displayName": "AutoCAD Plot Sheetset to PDF",
+                      "description": "Publish an entire sheetset to PDF. Input is a zipped sheetset; output is result.pdf. Uses AutoCAD's native _publishsheetset pipeline.",
+                      "capabilityId": "autocad:AutoCADPlotSheetsetToPDF",
                       "groupId": "autocad:public-activities",
                       "product": "AutoCAD",
-                      "engine": "Autodesk.AutoCAD+23, +24, +25",
+                      "engine": "Autodesk.AutoCAD+26_0",
                       "risk": "SAFE",
                       "configSchema": null,
-                      "outputContract": "output.svf.zip",
-                      "ioShape": "sourceFile.dwg → output.svf.zip",
+                      "outputContract": "result.pdf",
+                      "ioShape": "sheetset.zip → result.pdf",
                       "modifiesFile": false,
                       "readOnly": true,
                       "destructive": false,
-                      "globalOperationId": "autocad.public.publish-dwg-to-svf",
+                      "globalOperationId": "autocad.autocadplotsheetsettopdf",
                       "callable": true,
                       "effect": "read",
                       "authScopes": [
                         "code:all"
                       ],
-                      "sourceVerificationStatus": "NEEDS_LIVE_VERIFICATION",
+                      "sourceVerificationStatus": "VERIFIED",
                       "workItemTemplate": {
-                        "activityId": "AutoCAD.AcSvfPublish+prod",
+                        "activityId": "AutoCAD.PlotSheetsetToPDF+prod",
                         "arguments": {
-                          "HostDwg": {
+                          "SheetSet": {
                             "url": "{signed-input-url}",
-                            "verb": "get"
+                            "verb": "get",
+                            "localName": "sset",
+                            "zip": true
                           },
                           "Result": {
                             "url": "{signed-output-url}",
-                            "verb": "put"
+                            "verb": "post",
+                            "localName": "result.pdf"
                           }
                         }
                       }
                     }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "autocad:autodesk-test-utilities",
+              "groupNumber": "10",
+              "displayName": "AUTODESK TEST UTILITIES",
+              "product": "AutoCAD",
+              "domainId": "autocad",
+              "risk": "SAFE",
+              "ioShape": "sourceFile → output (format varies by activity)",
+              "approvalPolicy": "auto-approve",
+              "batchingPolicy": "batch-supported",
+              "defaultActivityTemplate": "activity.autodesk.public",
+              "defaultConfigTemplate": null,
+              "defaultWorkItemTemplate": "workitem.autodesk.public",
+              "note": "Autodesk-published internal test activities using the Autodesk.Test+Latest engine. Primarily for QA and DA infrastructure testing.",
+              "capabilityCount": 7,
+              "operationCount": 7,
+              "capabilities": [
+                {
+                  "id": "autocad:AutodeskLong",
+                  "alias": "AutodeskLong",
+                  "qualifiedName": "com.autodesk.public.test.long",
+                  "version": "1.0.0",
+                  "product": "AutoCAD",
+                  "groupId": "autocad:autodesk-test-utilities",
+                  "engine": "Autodesk.Test+Latest",
+                  "risk": "SAFE",
+                  "ioShape": "Long-running no-op job for timeout/async testing. No inputs or outputs.",
+                  "activityRef": "Autodesk.Long+Latest",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "Autodesk Long (Test)",
+                      "group": "autodesk-test-utilities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "Long-running no-op job for timeout/async testing. No inputs or outputs.",
+                      "output": ""
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.Test+Latest",
+                      "activityRef": "Autodesk.Long+Latest",
+                      "note": "Internal Autodesk test/QA activity. Engine: Autodesk.Test+Latest."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() → Registry match"
+                    }
+                  },
+                  "description": "Autodesk-internal test activity (Autodesk.Long+Latest). Long-running no-op job for timeout/async testing. No inputs or outputs.",
+                  "apiId": "engine:AutoCAD",
+                  "capabilityGroupId": "autocad:autodesk-test-utilities",
+                  "authFlows": [
+                    "2LO-client-credentials"
                   ],
-                  "note": "AcSvfPublish is used internally by Model Derivative. Argument names require live-API verification before use."
+                  "operations": [
+                    {
+                      "operationId": "autodesklong",
+                      "displayName": "Autodesk Long (Test)",
+                      "description": "Autodesk-internal test activity (Autodesk.Long+Latest). Long-running no-op job for timeout/async testing. No inputs or outputs.",
+                      "capabilityId": "autocad:AutodeskLong",
+                      "groupId": "autocad:autodesk-test-utilities",
+                      "product": "AutoCAD",
+                      "engine": "Autodesk.Test+Latest",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "(none)",
+                      "ioShape": "Long-running no-op job for timeout/async testing. No inputs or outputs.",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "autocad.autodesklong",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "VERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "Autodesk.Long+Latest",
+                        "arguments": {}
+                      }
+                    }
+                  ]
                 },
                 {
-                  "id": "autocad:AutoCADAcF2dPublish",
-                  "alias": "AutoCADAcF2dPublish",
-                  "qualifiedName": "com.autodesk.public.autocad.AutoCADAcF2dPublish",
+                  "id": "autocad:AutodeskReportZip",
+                  "alias": "AutodeskReportZip",
+                  "qualifiedName": "com.autodesk.public.test.reportzip",
                   "version": "1.0.0",
                   "product": "AutoCAD",
-                  "groupId": "autocad:public-activities",
-                  "engine": "Autodesk.AutoCAD+23, +24, +25",
+                  "groupId": "autocad:autodesk-test-utilities",
+                  "engine": "Autodesk.Test+Latest",
                   "risk": "SAFE",
-                  "ioShape": "sourceFile.dwg → output.f2d",
-                  "activityRef": "AutoCAD.AcF2dPublish+prod",
+                  "ioShape": "Produces a report ZIP. No inputs required.",
+                  "activityRef": "Autodesk.ReportZip+Latest",
                   "accessPattern": "DA-PublicActivity",
                   "runtimeRouting": {
                     "supportsMultipleOperations": false
                   },
                   "contract": {
                     "identity": {
-                      "name": "AutoCAD AcF2dPublish",
-                      "group": "public-activities",
+                      "name": "Autodesk ReportZip (Test)",
+                      "group": "autodesk-test-utilities",
                       "scope": "Autodesk Public Activity"
                     },
                     "io": {
-                      "input": "sourceFile.dwg",
-                      "output": "output.f2d"
+                      "input": "Produces a report ZIP. No inputs required.",
+                      "output": ""
                     },
                     "execution": {
                       "accessPattern": "DA-PublicActivity",
-                      "interface": "Autodesk.AutoCAD+23, +24, +25",
-                      "activityRef": "AutoCAD.AcF2dPublish+prod",
-                      "note": "No custom AppBundle required — Autodesk-published activity called directly."
+                      "interface": "Autodesk.Test+Latest",
+                      "activityRef": "Autodesk.ReportZip+Latest",
+                      "note": "Internal Autodesk test/QA activity. Engine: Autodesk.Test+Latest."
                     },
                     "governance": {
                       "riskLevel": "SAFE",
@@ -6926,82 +7027,72 @@
                       "discovery": "get_capability() → Registry match"
                     }
                   },
-                  "description": "Translate a DWG to F2D format (2D Viewer stream). Autodesk-published public activity; no custom AppBundle required. Arg names require live-API verification.",
+                  "description": "Autodesk-internal test activity (Autodesk.ReportZip+Latest). Produces a report ZIP. No inputs required.",
                   "apiId": "engine:AutoCAD",
-                  "capabilityGroupId": "autocad:public-activities",
+                  "capabilityGroupId": "autocad:autodesk-test-utilities",
                   "authFlows": [
                     "2LO-client-credentials"
                   ],
                   "operations": [
                     {
-                      "operationId": "publish-dwg-to-f2d",
-                      "displayName": "Publish DWG to F2D",
-                      "description": "Translate a DWG file to F2D (2D Viewer format) for the APS Viewer SDK.",
-                      "capabilityId": "autocad:AutoCADAcF2dPublish",
-                      "groupId": "autocad:public-activities",
+                      "operationId": "autodeskreportzip",
+                      "displayName": "Autodesk ReportZip (Test)",
+                      "description": "Autodesk-internal test activity (Autodesk.ReportZip+Latest). Produces a report ZIP. No inputs required.",
+                      "capabilityId": "autocad:AutodeskReportZip",
+                      "groupId": "autocad:autodesk-test-utilities",
                       "product": "AutoCAD",
-                      "engine": "Autodesk.AutoCAD+23, +24, +25",
+                      "engine": "Autodesk.Test+Latest",
                       "risk": "SAFE",
                       "configSchema": null,
-                      "outputContract": "output.f2d",
-                      "ioShape": "sourceFile.dwg → output.f2d",
+                      "outputContract": "(none)",
+                      "ioShape": "Produces a report ZIP. No inputs required.",
                       "modifiesFile": false,
                       "readOnly": true,
                       "destructive": false,
-                      "globalOperationId": "autocad.public.publish-dwg-to-f2d",
+                      "globalOperationId": "autocad.autodeskreportzip",
                       "callable": true,
                       "effect": "read",
                       "authScopes": [
                         "code:all"
                       ],
-                      "sourceVerificationStatus": "NEEDS_LIVE_VERIFICATION",
+                      "sourceVerificationStatus": "VERIFIED",
                       "workItemTemplate": {
-                        "activityId": "AutoCAD.AcF2dPublish+prod",
-                        "arguments": {
-                          "HostDwg": {
-                            "url": "{signed-input-url}",
-                            "verb": "get"
-                          },
-                          "Result": {
-                            "url": "{signed-output-url}",
-                            "verb": "put"
-                          }
-                        }
+                        "activityId": "Autodesk.ReportZip+Latest",
+                        "arguments": {}
                       }
                     }
-                  ],
-                  "note": "Arg names require live-API verification."
+                  ]
                 },
                 {
-                  "id": "autocad:AutoCADAcLMVPublish",
-                  "alias": "AutoCADAcLMVPublish",
-                  "qualifiedName": "com.autodesk.public.autocad.AutoCADAcLMVPublish",
+                  "id": "autocad:AutodeskVarArg",
+                  "alias": "AutodeskVarArg",
+                  "qualifiedName": "com.autodesk.public.test.vararg",
                   "version": "1.0.0",
                   "product": "AutoCAD",
-                  "groupId": "autocad:public-activities",
-                  "engine": "Autodesk.AutoCAD+23, +24, +25",
+                  "groupId": "autocad:autodesk-test-utilities",
+                  "engine": "Autodesk.Test+Latest",
                   "risk": "SAFE",
-                  "ioShape": "sourceFile.dwg → output.lmv.zip",
-                  "activityRef": "AutoCAD.AcLMVPublish+prod",
+                  "ioShape": "Variadic args: hostInput(get) + variadic + output(put,result.pdf). Not pre-templatable.",
+                  "activityRef": "Autodesk.VarArg+Latest",
                   "accessPattern": "DA-PublicActivity",
                   "runtimeRouting": {
                     "supportsMultipleOperations": false
                   },
                   "contract": {
                     "identity": {
-                      "name": "AutoCAD AcLMVPublish",
-                      "group": "public-activities",
+                      "name": "Autodesk VarArg (Test)",
+                      "group": "autodesk-test-utilities",
                       "scope": "Autodesk Public Activity"
                     },
                     "io": {
-                      "input": "sourceFile.dwg",
-                      "output": "output.lmv.zip"
+                      "input": "Variadic args: hostInput(get) + variadic + output(put,result.pdf). Not pre-templatable.",
+                      "output": ""
                     },
                     "execution": {
                       "accessPattern": "DA-PublicActivity",
-                      "interface": "Autodesk.AutoCAD+23, +24, +25",
-                      "activityRef": "AutoCAD.AcLMVPublish+prod",
-                      "note": "No custom AppBundle required — Autodesk-published activity called directly."
+                      "interface": "Autodesk.Test+Latest",
+                      "activityRef": "Autodesk.VarArg+Latest",
+                      "note": "Internal Autodesk test/QA activity. Engine: Autodesk.Test+Latest."
                     },
                     "governance": {
                       "riskLevel": "SAFE",
@@ -7016,51 +7107,406 @@
                       "discovery": "get_capability() → Registry match"
                     }
                   },
-                  "description": "Translate a DWG to LMV (Large Model Viewer) format. Autodesk-published public activity; no custom AppBundle required. Arg names require live-API verification.",
+                  "description": "Autodesk-internal test activity (Autodesk.VarArg+Latest). Variadic args: hostInput(get) + variadic + output(put,result.pdf). Not pre-templatable.",
                   "apiId": "engine:AutoCAD",
-                  "capabilityGroupId": "autocad:public-activities",
+                  "capabilityGroupId": "autocad:autodesk-test-utilities",
                   "authFlows": [
                     "2LO-client-credentials"
                   ],
                   "operations": [
                     {
-                      "operationId": "publish-dwg-to-lmv",
-                      "displayName": "Publish DWG to LMV",
-                      "description": "Translate a DWG file to LMV format for the APS Viewer SDK.",
-                      "capabilityId": "autocad:AutoCADAcLMVPublish",
-                      "groupId": "autocad:public-activities",
+                      "operationId": "autodeskvararg",
+                      "displayName": "Autodesk VarArg (Test)",
+                      "description": "Autodesk-internal test activity (Autodesk.VarArg+Latest). Variadic args: hostInput(get) + variadic + output(put,result.pdf). Not pre-templatable.",
+                      "capabilityId": "autocad:AutodeskVarArg",
+                      "groupId": "autocad:autodesk-test-utilities",
                       "product": "AutoCAD",
-                      "engine": "Autodesk.AutoCAD+23, +24, +25",
+                      "engine": "Autodesk.Test+Latest",
                       "risk": "SAFE",
                       "configSchema": null,
-                      "outputContract": "output.lmv.zip",
-                      "ioShape": "sourceFile.dwg → output.lmv.zip",
+                      "outputContract": "result.pdf",
+                      "ioShape": "Variadic args: hostInput(get) + variadic + output(put,result.pdf). Not pre-templatable.",
                       "modifiesFile": false,
                       "readOnly": true,
                       "destructive": false,
-                      "globalOperationId": "autocad.public.publish-dwg-to-lmv",
-                      "callable": true,
+                      "globalOperationId": "autocad.autodeskvararg",
+                      "callable": false,
                       "effect": "read",
                       "authScopes": [
                         "code:all"
                       ],
-                      "sourceVerificationStatus": "NEEDS_LIVE_VERIFICATION",
+                      "sourceVerificationStatus": "VERIFIED",
                       "workItemTemplate": {
-                        "activityId": "AutoCAD.AcLMVPublish+prod",
+                        "activityId": "Autodesk.VarArg+Latest",
                         "arguments": {
-                          "HostDwg": {
+                          "hostInput": {
                             "url": "{signed-input-url}",
-                            "verb": "get"
+                            "verb": "get",
+                            "localName": "host.dwg"
                           },
-                          "Result": {
+                          "output": {
                             "url": "{signed-output-url}",
-                            "verb": "put"
+                            "verb": "put",
+                            "localName": "result.pdf"
                           }
                         }
                       }
                     }
+                  ]
+                },
+                {
+                  "id": "autocad:AutodeskVarArgInputsOnly",
+                  "alias": "AutodeskVarArgInputsOnly",
+                  "qualifiedName": "com.autodesk.public.test.vararginputsonly",
+                  "version": "1.0.0",
+                  "product": "AutoCAD",
+                  "groupId": "autocad:autodesk-test-utilities",
+                  "engine": "Autodesk.Test+Latest",
+                  "risk": "SAFE",
+                  "ioShape": "Variadic input-only args + output(put). Not pre-templatable.",
+                  "activityRef": "Autodesk.VarArgInputsOnly+Latest",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "Autodesk VarArgInputsOnly (Test)",
+                      "group": "autodesk-test-utilities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "Variadic input-only args + output(put). Not pre-templatable.",
+                      "output": ""
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.Test+Latest",
+                      "activityRef": "Autodesk.VarArgInputsOnly+Latest",
+                      "note": "Internal Autodesk test/QA activity. Engine: Autodesk.Test+Latest."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() → Registry match"
+                    }
+                  },
+                  "description": "Autodesk-internal test activity (Autodesk.VarArgInputsOnly+Latest). Variadic input-only args + output(put). Not pre-templatable.",
+                  "apiId": "engine:AutoCAD",
+                  "capabilityGroupId": "autocad:autodesk-test-utilities",
+                  "authFlows": [
+                    "2LO-client-credentials"
                   ],
-                  "note": "Arg names require live-API verification."
+                  "operations": [
+                    {
+                      "operationId": "autodeskvararginputsonly",
+                      "displayName": "Autodesk VarArgInputsOnly (Test)",
+                      "description": "Autodesk-internal test activity (Autodesk.VarArgInputsOnly+Latest). Variadic input-only args + output(put). Not pre-templatable.",
+                      "capabilityId": "autocad:AutodeskVarArgInputsOnly",
+                      "groupId": "autocad:autodesk-test-utilities",
+                      "product": "AutoCAD",
+                      "engine": "Autodesk.Test+Latest",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.pdf",
+                      "ioShape": "Variadic input-only args + output(put). Not pre-templatable.",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "autocad.autodeskvararginputsonly",
+                      "callable": false,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "VERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "Autodesk.VarArgInputsOnly+Latest",
+                        "arguments": {
+                          "output": {
+                            "url": "{signed-output-url}",
+                            "verb": "put",
+                            "localName": "result.pdf"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "autocad:AutodeskVarArgNoOptional",
+                  "alias": "AutodeskVarArgNoOptional",
+                  "qualifiedName": "com.autodesk.public.test.varargnooptional",
+                  "version": "1.0.0",
+                  "product": "AutoCAD",
+                  "groupId": "autocad:autodesk-test-utilities",
+                  "engine": "Autodesk.Test+Latest",
+                  "risk": "SAFE",
+                  "ioShape": "Variadic args, all required. hostInput(get,required) + output(put). Not pre-templatable.",
+                  "activityRef": "Autodesk.VarArgNoOptional+Latest",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "Autodesk VarArgNoOptional (Test)",
+                      "group": "autodesk-test-utilities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "Variadic args, all required. hostInput(get,required) + output(put). Not pre-templatable.",
+                      "output": ""
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.Test+Latest",
+                      "activityRef": "Autodesk.VarArgNoOptional+Latest",
+                      "note": "Internal Autodesk test/QA activity. Engine: Autodesk.Test+Latest."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() → Registry match"
+                    }
+                  },
+                  "description": "Autodesk-internal test activity (Autodesk.VarArgNoOptional+Latest). Variadic args, all required. hostInput(get,required) + output(put). Not pre-templatable.",
+                  "apiId": "engine:AutoCAD",
+                  "capabilityGroupId": "autocad:autodesk-test-utilities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "autodeskvarargnooptional",
+                      "displayName": "Autodesk VarArgNoOptional (Test)",
+                      "description": "Autodesk-internal test activity (Autodesk.VarArgNoOptional+Latest). Variadic args, all required. hostInput(get,required) + output(put). Not pre-templatable.",
+                      "capabilityId": "autocad:AutodeskVarArgNoOptional",
+                      "groupId": "autocad:autodesk-test-utilities",
+                      "product": "AutoCAD",
+                      "engine": "Autodesk.Test+Latest",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.pdf",
+                      "ioShape": "Variadic args, all required. hostInput(get,required) + output(put). Not pre-templatable.",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "autocad.autodeskvarargnooptional",
+                      "callable": false,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "VERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "Autodesk.VarArgNoOptional+Latest",
+                        "arguments": {
+                          "hostInput": {
+                            "url": "{signed-input-url}",
+                            "verb": "get",
+                            "localName": "host.dwg"
+                          },
+                          "output": {
+                            "url": "{signed-output-url}",
+                            "verb": "put",
+                            "localName": "result.pdf"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "autocad:AutodeskVarArgOptionalFalse",
+                  "alias": "AutodeskVarArgOptionalFalse",
+                  "qualifiedName": "com.autodesk.public.test.varargoptionalfalse",
+                  "version": "1.0.0",
+                  "product": "AutoCAD",
+                  "groupId": "autocad:autodesk-test-utilities",
+                  "engine": "Autodesk.Test+Latest",
+                  "risk": "SAFE",
+                  "ioShape": "Variadic args with optional=false. Not pre-templatable.",
+                  "activityRef": "Autodesk.VarArgOptionalFalse+Latest",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "Autodesk VarArgOptionalFalse (Test)",
+                      "group": "autodesk-test-utilities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "Variadic args with optional=false. Not pre-templatable.",
+                      "output": ""
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.Test+Latest",
+                      "activityRef": "Autodesk.VarArgOptionalFalse+Latest",
+                      "note": "Internal Autodesk test/QA activity. Engine: Autodesk.Test+Latest."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() → Registry match"
+                    }
+                  },
+                  "description": "Autodesk-internal test activity (Autodesk.VarArgOptionalFalse+Latest). Variadic args with optional=false. Not pre-templatable.",
+                  "apiId": "engine:AutoCAD",
+                  "capabilityGroupId": "autocad:autodesk-test-utilities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "autodeskvarargoptionalfalse",
+                      "displayName": "Autodesk VarArgOptionalFalse (Test)",
+                      "description": "Autodesk-internal test activity (Autodesk.VarArgOptionalFalse+Latest). Variadic args with optional=false. Not pre-templatable.",
+                      "capabilityId": "autocad:AutodeskVarArgOptionalFalse",
+                      "groupId": "autocad:autodesk-test-utilities",
+                      "product": "AutoCAD",
+                      "engine": "Autodesk.Test+Latest",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.pdf",
+                      "ioShape": "Variadic args with optional=false. Not pre-templatable.",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "autocad.autodeskvarargoptionalfalse",
+                      "callable": false,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "VERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "Autodesk.VarArgOptionalFalse+Latest",
+                        "arguments": {
+                          "hostInput": {
+                            "url": "{signed-input-url}",
+                            "verb": "get",
+                            "localName": "host.dwg"
+                          },
+                          "output": {
+                            "url": "{signed-output-url}",
+                            "verb": "put",
+                            "localName": "result.pdf"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "autocad:AutodeskVarArgOutputsOnly",
+                  "alias": "AutodeskVarArgOutputsOnly",
+                  "qualifiedName": "com.autodesk.public.test.varargoutputsonly",
+                  "version": "1.0.0",
+                  "product": "AutoCAD",
+                  "groupId": "autocad:autodesk-test-utilities",
+                  "engine": "Autodesk.Test+Latest",
+                  "risk": "SAFE",
+                  "ioShape": "Variadic output-only args + hostInput(get). Not pre-templatable.",
+                  "activityRef": "Autodesk.VarArgOutputsOnly+Latest",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "Autodesk VarArgOutputsOnly (Test)",
+                      "group": "autodesk-test-utilities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "Variadic output-only args + hostInput(get). Not pre-templatable.",
+                      "output": ""
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.Test+Latest",
+                      "activityRef": "Autodesk.VarArgOutputsOnly+Latest",
+                      "note": "Internal Autodesk test/QA activity. Engine: Autodesk.Test+Latest."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() → Registry match"
+                    }
+                  },
+                  "description": "Autodesk-internal test activity (Autodesk.VarArgOutputsOnly+Latest). Variadic output-only args + hostInput(get). Not pre-templatable.",
+                  "apiId": "engine:AutoCAD",
+                  "capabilityGroupId": "autocad:autodesk-test-utilities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "autodeskvarargoutputsonly",
+                      "displayName": "Autodesk VarArgOutputsOnly (Test)",
+                      "description": "Autodesk-internal test activity (Autodesk.VarArgOutputsOnly+Latest). Variadic output-only args + hostInput(get). Not pre-templatable.",
+                      "capabilityId": "autocad:AutodeskVarArgOutputsOnly",
+                      "groupId": "autocad:autodesk-test-utilities",
+                      "product": "AutoCAD",
+                      "engine": "Autodesk.Test+Latest",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "(none)",
+                      "ioShape": "Variadic output-only args + hostInput(get). Not pre-templatable.",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "autocad.autodeskvarargoutputsonly",
+                      "callable": false,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "VERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "Autodesk.VarArgOutputsOnly+Latest",
+                        "arguments": {
+                          "hostInput": {
+                            "url": "{signed-input-url}",
+                            "verb": "get",
+                            "localName": "host.dwg"
+                          }
+                        }
+                      }
+                    }
+                  ]
                 }
               ]
             }
@@ -13631,209 +14077,6 @@
                   ]
                 }
               ]
-            },
-            {
-              "id": "revit:public-activities",
-              "groupNumber": "10",
-              "displayName": "PUBLIC ACTIVITIES",
-              "product": "Revit",
-              "domainId": "revit",
-              "risk": "SAFE",
-              "ioShape": "sourceFile → output (format varies by activity)",
-              "approvalPolicy": "auto-approve",
-              "batchingPolicy": "batch-supported",
-              "defaultActivityTemplate": "activity.autodesk.public",
-              "defaultConfigTemplate": null,
-              "defaultWorkItemTemplate": "workitem.autodesk.public",
-              "note": "Autodesk-published activities. No custom AppBundle required. Call activityId directly in WorkItem.",
-              "capabilityCount": 2,
-              "operationCount": 2,
-              "capabilities": [
-                {
-                  "id": "revit:RevitSketchIt",
-                  "alias": "RevitSketchIt",
-                  "qualifiedName": "com.autodesk.public.revit.RevitSketchIt",
-                  "version": "1.0.0",
-                  "product": "Revit",
-                  "groupId": "revit:public-activities",
-                  "engine": "Autodesk.Revit+2018",
-                  "risk": "SAFE",
-                  "ioShape": "sourceFile.rvt + svgParams.json → output.svg",
-                  "activityRef": "Revit.RvtIOSketchItActivity2018+prod",
-                  "accessPattern": "DA-PublicActivity",
-                  "runtimeRouting": {
-                    "supportsMultipleOperations": false
-                  },
-                  "contract": {
-                    "identity": {
-                      "name": "Revit SketchIt",
-                      "group": "public-activities",
-                      "scope": "Autodesk Public Activity"
-                    },
-                    "io": {
-                      "input": "sourceFile.rvt + svgParams.json",
-                      "output": "output.svg"
-                    },
-                    "execution": {
-                      "accessPattern": "DA-PublicActivity",
-                      "interface": "Autodesk.Revit+2018",
-                      "activityRef": "Revit.RvtIOSketchItActivity2018+prod",
-                      "note": "No custom AppBundle required — Autodesk-published activity called directly."
-                    },
-                    "governance": {
-                      "riskLevel": "SAFE",
-                      "operationType": "read",
-                      "approval": "Auto-execute"
-                    },
-                    "consumers": {
-                      "targets": [
-                        "AI Agents",
-                        "Developers"
-                      ],
-                      "discovery": "get_capability() → Registry match"
-                    }
-                  },
-                  "description": "Generate SVG sketch lines from Revit wall and floor geometry. Autodesk-published demo activity (Revit 2018 engine). No custom AppBundle required. Arg names require live-API verification.",
-                  "apiId": "engine:Revit",
-                  "capabilityGroupId": "revit:public-activities",
-                  "authFlows": [
-                    "2LO-client-credentials"
-                  ],
-                  "operations": [
-                    {
-                      "operationId": "generate-sketch-from-revit",
-                      "displayName": "Generate Sketch from Revit",
-                      "description": "Extract wall and floor outlines from a Revit model and render them as SVG sketch lines.",
-                      "capabilityId": "revit:RevitSketchIt",
-                      "groupId": "revit:public-activities",
-                      "product": "Revit",
-                      "engine": "Autodesk.Revit+2018",
-                      "risk": "SAFE",
-                      "configSchema": null,
-                      "outputContract": "output.svg",
-                      "ioShape": "sourceFile.rvt + svgParams.json → output.svg",
-                      "modifiesFile": false,
-                      "readOnly": true,
-                      "destructive": false,
-                      "globalOperationId": "revit.public.generate-sketch-from-revit",
-                      "callable": true,
-                      "effect": "read",
-                      "authScopes": [
-                        "code:all"
-                      ],
-                      "sourceVerificationStatus": "NEEDS_LIVE_VERIFICATION",
-                      "workItemTemplate": {
-                        "activityId": "Revit.RvtIOSketchItActivity2018+prod",
-                        "arguments": {
-                          "rvtFile": {
-                            "url": "{signed-input-url}",
-                            "verb": "get"
-                          },
-                          "svgParams": {
-                            "url": "{signed-params-url}",
-                            "verb": "get"
-                          },
-                          "svgResult": {
-                            "url": "{signed-output-url}",
-                            "verb": "put"
-                          }
-                        }
-                      }
-                    }
-                  ],
-                  "note": "Revit 2018 engine only. Arg names require live-API verification."
-                },
-                {
-                  "id": "revit:RevitSandboxTest",
-                  "alias": "RevitSandboxTest",
-                  "qualifiedName": "com.autodesk.public.revit.RevitSandboxTest",
-                  "version": "1.0.0",
-                  "product": "Revit",
-                  "groupId": "revit:public-activities",
-                  "engine": "Autodesk.Revit+2018",
-                  "risk": "SAFE",
-                  "ioShape": "sourceFile.rvt → testResult.json",
-                  "activityRef": "Revit.RvtIOSandboxTestActivity2018+prod",
-                  "accessPattern": "DA-PublicActivity",
-                  "runtimeRouting": {
-                    "supportsMultipleOperations": false
-                  },
-                  "contract": {
-                    "identity": {
-                      "name": "Revit SandboxTest",
-                      "group": "public-activities",
-                      "scope": "Autodesk Public Activity"
-                    },
-                    "io": {
-                      "input": "sourceFile.rvt",
-                      "output": "testResult.json"
-                    },
-                    "execution": {
-                      "accessPattern": "DA-PublicActivity",
-                      "interface": "Autodesk.Revit+2018",
-                      "activityRef": "Revit.RvtIOSandboxTestActivity2018+prod",
-                      "note": "No custom AppBundle required — Autodesk-published activity called directly."
-                    },
-                    "governance": {
-                      "riskLevel": "SAFE",
-                      "operationType": "read",
-                      "approval": "Auto-execute"
-                    },
-                    "consumers": {
-                      "targets": [
-                        "AI Agents",
-                        "Developers"
-                      ],
-                      "discovery": "get_capability() → Registry match"
-                    }
-                  },
-                  "description": "Sandbox/health-check activity for the Revit DA engine (Revit 2018). Autodesk-published; no custom AppBundle required. Arg names require live-API verification.",
-                  "apiId": "engine:Revit",
-                  "capabilityGroupId": "revit:public-activities",
-                  "authFlows": [
-                    "2LO-client-credentials"
-                  ],
-                  "operations": [
-                    {
-                      "operationId": "revit-sandbox-test",
-                      "displayName": "Revit Sandbox Test",
-                      "description": "Validate DA Revit engine availability. Submits a minimal WorkItem and checks for Succeeded status.",
-                      "capabilityId": "revit:RevitSandboxTest",
-                      "groupId": "revit:public-activities",
-                      "product": "Revit",
-                      "engine": "Autodesk.Revit+2018",
-                      "risk": "SAFE",
-                      "configSchema": null,
-                      "outputContract": "testResult.json",
-                      "ioShape": "sourceFile.rvt → testResult.json",
-                      "modifiesFile": false,
-                      "readOnly": true,
-                      "destructive": false,
-                      "globalOperationId": "revit.public.revit-sandbox-test",
-                      "callable": true,
-                      "effect": "read",
-                      "authScopes": [
-                        "code:all"
-                      ],
-                      "sourceVerificationStatus": "NEEDS_LIVE_VERIFICATION",
-                      "workItemTemplate": {
-                        "activityId": "Revit.RvtIOSandboxTestActivity2018+prod",
-                        "arguments": {
-                          "rvtFile": {
-                            "url": "{signed-input-url}",
-                            "verb": "get"
-                          },
-                          "testResult": {
-                            "url": "{signed-output-url}",
-                            "verb": "put"
-                          }
-                        }
-                      }
-                    }
-                  ],
-                  "note": "Revit 2018 engine only. Arg names require live-API verification."
-                }
-              ]
             }
           ]
         },
@@ -20161,6 +20404,225 @@
                         "code:all"
                       ],
                       "sourceVerificationStatus": "VERIFIED"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "fusion:public-activities",
+              "groupNumber": "14",
+              "displayName": "PUBLIC ACTIVITIES",
+              "product": "Fusion",
+              "domainId": "fusion",
+              "risk": "SAFE",
+              "ioShape": "sourceFile → output (format varies by activity)",
+              "approvalPolicy": "auto-approve",
+              "batchingPolicy": "batch-supported",
+              "defaultActivityTemplate": "activity.autodesk.public",
+              "defaultConfigTemplate": null,
+              "defaultWorkItemTemplate": "workitem.autodesk.public",
+              "note": "Autodesk-published Fusion 360 script execution activities.",
+              "capabilityCount": 2,
+              "operationCount": 2,
+              "capabilities": [
+                {
+                  "id": "fusion:FusionScriptJob",
+                  "alias": "FusionScriptJob",
+                  "qualifiedName": "com.autodesk.public.fusion.FusionScriptJob",
+                  "version": "1.0.0",
+                  "product": "Fusion",
+                  "groupId": "fusion:public-activities",
+                  "engine": "Autodesk.Fusion360+Latest",
+                  "risk": "SAFE",
+                  "ioShape": "TaskScript + InputFile → OutputFile",
+                  "activityRef": "Fusion.ScriptJob+Latest",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "Fusion Script Job",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "TaskScript + InputFile",
+                      "output": "OutputFile"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.Fusion360+Latest",
+                      "activityRef": "Fusion.ScriptJob+Latest",
+                      "note": "No custom AppBundle required — Autodesk-published activity."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() → Registry match"
+                    }
+                  },
+                  "description": "Run a Fusion 360 script (Python or JavaScript) headlessly. Accepts a script URL, task parameters, and an optional input file; produces an output file.",
+                  "apiId": "engine:Fusion",
+                  "capabilityGroupId": "fusion:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "fusionscriptjob",
+                      "displayName": "Fusion Script Job",
+                      "description": "Run a Fusion 360 script (Python or JavaScript) headlessly. Accepts a script URL, task parameters, and an optional input file; produces an output file.",
+                      "capabilityId": "fusion:FusionScriptJob",
+                      "groupId": "fusion:public-activities",
+                      "product": "Fusion",
+                      "engine": "Autodesk.Fusion360+Latest",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "output.txt",
+                      "ioShape": "TaskScript + InputFile → OutputFile",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "fusion.fusionscriptjob",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "VERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "Fusion.ScriptJob+Latest",
+                        "arguments": {
+                          "TaskScript": {
+                            "verb": "read"
+                          },
+                          "TaskScriptUrl": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "TaskParameters": {
+                            "verb": "read"
+                          },
+                          "PersonalAccessToken": {
+                            "verb": "read"
+                          },
+                          "IsJavaScript": {
+                            "verb": "read"
+                          },
+                          "ResourceName": {
+                            "verb": "read"
+                          },
+                          "InputFile": {
+                            "url": "{signed-input-url}",
+                            "verb": "get",
+                            "localName": "input.txt"
+                          },
+                          "OutputFile": {
+                            "url": "{signed-output-url}",
+                            "verb": "put",
+                            "localName": "output.txt"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "fusion:FusionScriptBundleJob",
+                  "alias": "FusionScriptBundleJob",
+                  "qualifiedName": "com.autodesk.public.fusion.FusionScriptBundleJob",
+                  "version": "1.0.0",
+                  "product": "Fusion",
+                  "groupId": "fusion:public-activities",
+                  "engine": "Autodesk.Fusion360+Latest",
+                  "risk": "SAFE",
+                  "ioShape": "TaskParameters + PAT → (script output)",
+                  "activityRef": "Fusion.ScriptBundleJob+Latest",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "Fusion Script Bundle Job",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "TaskParameters + PAT",
+                      "output": "(script output)"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.Fusion360+Latest",
+                      "activityRef": "Fusion.ScriptBundleJob+Latest",
+                      "note": "Uses Autodesk-published Fusion.helloFusion AppBundle."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() → Registry match"
+                    }
+                  },
+                  "description": "Run a Fusion 360 script bundle (helloFusion AppBundle). Accepts task parameters and a Personal Access Token.",
+                  "apiId": "engine:Fusion",
+                  "capabilityGroupId": "fusion:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "appbundles": [
+                    "Fusion.helloFusion+Latest"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "fusionscriptbundlejob",
+                      "displayName": "Fusion Script Bundle Job",
+                      "description": "Run a Fusion 360 script bundle (helloFusion AppBundle). Accepts task parameters and a Personal Access Token.",
+                      "capabilityId": "fusion:FusionScriptBundleJob",
+                      "groupId": "fusion:public-activities",
+                      "product": "Fusion",
+                      "engine": "Autodesk.Fusion360+Latest",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "(script-defined)",
+                      "ioShape": "TaskParameters + PAT → (script output)",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "fusion.fusionscriptbundlejob",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "VERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "Fusion.ScriptBundleJob+Latest",
+                        "arguments": {
+                          "TaskParameters": {
+                            "verb": "read"
+                          },
+                          "PersonalAccessToken": {
+                            "verb": "read"
+                          }
+                        }
+                      }
                     }
                   ]
                 }
@@ -27861,393 +28323,6 @@
                   ]
                 }
               ]
-            },
-            {
-              "id": "inventor:public-activities",
-              "groupNumber": "17",
-              "displayName": "PUBLIC ACTIVITIES",
-              "product": "Inventor",
-              "domainId": "inventor",
-              "risk": "SAFE",
-              "ioShape": "sourceFile → output (format varies by activity)",
-              "approvalPolicy": "auto-approve",
-              "batchingPolicy": "batch-supported",
-              "defaultActivityTemplate": "activity.autodesk.public",
-              "defaultConfigTemplate": null,
-              "defaultWorkItemTemplate": "workitem.autodesk.public",
-              "note": "Autodesk-published activities. No custom AppBundle required. Call activityId directly in WorkItem.",
-              "capabilityCount": 4,
-              "operationCount": 4,
-              "capabilities": [
-                {
-                  "id": "inventor:InventorChangeParams",
-                  "alias": "InventorChangeParams",
-                  "qualifiedName": "com.autodesk.public.inventor.InventorChangeParams",
-                  "version": "1.0.0",
-                  "product": "Inventor",
-                  "groupId": "inventor:public-activities",
-                  "engine": "Autodesk.Inventor+23, +24, +25",
-                  "risk": "REVIEW",
-                  "ioShape": "sourceFile.ipt + params.json → outputFile.ipt",
-                  "activityRef": "Inventor.ChangeParams+prod",
-                  "accessPattern": "DA-PublicActivity",
-                  "runtimeRouting": {
-                    "supportsMultipleOperations": false
-                  },
-                  "contract": {
-                    "identity": {
-                      "name": "Inventor ChangeParams",
-                      "group": "public-activities",
-                      "scope": "Autodesk Public Activity"
-                    },
-                    "io": {
-                      "input": "sourceFile.ipt + params.json",
-                      "output": "outputFile.ipt"
-                    },
-                    "execution": {
-                      "accessPattern": "DA-PublicActivity",
-                      "interface": "Autodesk.Inventor+23, +24, +25",
-                      "activityRef": "Inventor.ChangeParams+prod",
-                      "note": "No custom AppBundle required — Autodesk-published activity called directly."
-                    },
-                    "governance": {
-                      "riskLevel": "REVIEW",
-                      "operationType": "convert",
-                      "approval": "Auto-execute"
-                    },
-                    "consumers": {
-                      "targets": [
-                        "AI Agents",
-                        "Developers"
-                      ],
-                      "discovery": "get_capability() → Registry match"
-                    }
-                  },
-                  "description": "Modify parameter values in an Inventor part or assembly. Autodesk-published public activity. Arg names require live-API verification.",
-                  "apiId": "engine:Inventor",
-                  "capabilityGroupId": "inventor:public-activities",
-                  "authFlows": [
-                    "2LO-client-credentials"
-                  ],
-                  "operations": [
-                    {
-                      "operationId": "change-model-parameters",
-                      "displayName": "Change Model Parameters",
-                      "description": "Update numeric user parameters in an Inventor IPT/IAM file via a params.json input. Returns modified file.",
-                      "capabilityId": "inventor:InventorChangeParams",
-                      "groupId": "inventor:public-activities",
-                      "product": "Inventor",
-                      "engine": "Autodesk.Inventor+23, +24, +25",
-                      "risk": "REVIEW",
-                      "configSchema": null,
-                      "outputContract": "outputFile.ipt",
-                      "ioShape": "sourceFile.ipt + params.json → outputFile.ipt",
-                      "modifiesFile": true,
-                      "readOnly": false,
-                      "destructive": false,
-                      "globalOperationId": "inventor.public.change-model-parameters",
-                      "callable": true,
-                      "effect": "write",
-                      "authScopes": [
-                        "code:all"
-                      ],
-                      "sourceVerificationStatus": "NEEDS_LIVE_VERIFICATION",
-                      "workItemTemplate": {
-                        "activityId": "Inventor.ChangeParams+prod",
-                        "arguments": {
-                          "inputFile": {
-                            "url": "{signed-input-url}",
-                            "verb": "get"
-                          },
-                          "paramsFile": {
-                            "url": "{signed-params-url}",
-                            "verb": "get"
-                          },
-                          "outputFile": {
-                            "url": "{signed-output-url}",
-                            "verb": "put"
-                          }
-                        }
-                      }
-                    }
-                  ],
-                  "note": "Arg names require live-API verification."
-                },
-                {
-                  "id": "inventor:InventorILogicVolume",
-                  "alias": "InventorILogicVolume",
-                  "qualifiedName": "com.autodesk.public.inventor.InventorILogicVolume",
-                  "version": "1.0.0",
-                  "product": "Inventor",
-                  "groupId": "inventor:public-activities",
-                  "engine": "Autodesk.Inventor+23, +24, +25",
-                  "risk": "SAFE",
-                  "ioShape": "sourceFile.ipt → volumeResult.json",
-                  "activityRef": "Inventor.iLogic_Volume2020+prod",
-                  "accessPattern": "DA-PublicActivity",
-                  "runtimeRouting": {
-                    "supportsMultipleOperations": false
-                  },
-                  "contract": {
-                    "identity": {
-                      "name": "Inventor ILogicVolume",
-                      "group": "public-activities",
-                      "scope": "Autodesk Public Activity"
-                    },
-                    "io": {
-                      "input": "sourceFile.ipt",
-                      "output": "volumeResult.json"
-                    },
-                    "execution": {
-                      "accessPattern": "DA-PublicActivity",
-                      "interface": "Autodesk.Inventor+23, +24, +25",
-                      "activityRef": "Inventor.iLogic_Volume2020+prod",
-                      "note": "No custom AppBundle required — Autodesk-published activity called directly."
-                    },
-                    "governance": {
-                      "riskLevel": "SAFE",
-                      "operationType": "read",
-                      "approval": "Auto-execute"
-                    },
-                    "consumers": {
-                      "targets": [
-                        "AI Agents",
-                        "Developers"
-                      ],
-                      "discovery": "get_capability() → Registry match"
-                    }
-                  },
-                  "description": "Run an iLogic rule to calculate model volume on an Inventor part (2020 engine). Autodesk-published public activity. Arg names require live-API verification.",
-                  "apiId": "engine:Inventor",
-                  "capabilityGroupId": "inventor:public-activities",
-                  "authFlows": [
-                    "2LO-client-credentials"
-                  ],
-                  "operations": [
-                    {
-                      "operationId": "calculate-volume-ilogic",
-                      "displayName": "Calculate Volume (iLogic)",
-                      "description": "Execute iLogic volume calculation rule on the Inventor part and return volumeResult.json.",
-                      "capabilityId": "inventor:InventorILogicVolume",
-                      "groupId": "inventor:public-activities",
-                      "product": "Inventor",
-                      "engine": "Autodesk.Inventor+23, +24, +25",
-                      "risk": "SAFE",
-                      "configSchema": null,
-                      "outputContract": "volumeResult.json",
-                      "ioShape": "sourceFile.ipt → volumeResult.json",
-                      "modifiesFile": false,
-                      "readOnly": true,
-                      "destructive": false,
-                      "globalOperationId": "inventor.public.calculate-volume-ilogic",
-                      "callable": true,
-                      "effect": "read",
-                      "authScopes": [
-                        "code:all"
-                      ],
-                      "sourceVerificationStatus": "NEEDS_LIVE_VERIFICATION",
-                      "workItemTemplate": {
-                        "activityId": "Inventor.iLogic_Volume2020+prod",
-                        "arguments": {
-                          "inputFile": {
-                            "url": "{signed-input-url}",
-                            "verb": "get"
-                          },
-                          "volumeResult": {
-                            "url": "{signed-output-url}",
-                            "verb": "put"
-                          }
-                        }
-                      }
-                    }
-                  ],
-                  "note": "Inventor 2020 engine targeting. Arg names require live-API verification."
-                },
-                {
-                  "id": "inventor:InventorConfiguration",
-                  "alias": "InventorConfiguration",
-                  "qualifiedName": "com.autodesk.public.inventor.InventorConfiguration",
-                  "version": "1.0.0",
-                  "product": "Inventor",
-                  "groupId": "inventor:public-activities",
-                  "engine": "Autodesk.Inventor+23, +24, +25",
-                  "risk": "REVIEW",
-                  "ioShape": "sourceFile.iam + configParams.json → outputAssembly.iam",
-                  "activityRef": "Inventor.Configuration+Beta",
-                  "accessPattern": "DA-PublicActivity",
-                  "runtimeRouting": {
-                    "supportsMultipleOperations": false
-                  },
-                  "contract": {
-                    "identity": {
-                      "name": "Inventor Configuration",
-                      "group": "public-activities",
-                      "scope": "Autodesk Public Activity"
-                    },
-                    "io": {
-                      "input": "sourceFile.iam + configParams.json",
-                      "output": "outputAssembly.iam"
-                    },
-                    "execution": {
-                      "accessPattern": "DA-PublicActivity",
-                      "interface": "Autodesk.Inventor+23, +24, +25",
-                      "activityRef": "Inventor.Configuration+Beta",
-                      "note": "No custom AppBundle required — Autodesk-published activity called directly."
-                    },
-                    "governance": {
-                      "riskLevel": "REVIEW",
-                      "operationType": "convert",
-                      "approval": "Auto-execute"
-                    },
-                    "consumers": {
-                      "targets": [
-                        "AI Agents",
-                        "Developers"
-                      ],
-                      "discovery": "get_capability() → Registry match"
-                    }
-                  },
-                  "description": "Apply a configuration (BOM-driven parameter set) to an Inventor assembly. Autodesk-published Beta activity. Arg names require live-API verification.",
-                  "apiId": "engine:Inventor",
-                  "capabilityGroupId": "inventor:public-activities",
-                  "authFlows": [
-                    "2LO-client-credentials"
-                  ],
-                  "operations": [
-                    {
-                      "operationId": "configure-model",
-                      "displayName": "Configure Model",
-                      "description": "Apply a named configuration to an Inventor assembly and output the resulting IAM file.",
-                      "capabilityId": "inventor:InventorConfiguration",
-                      "groupId": "inventor:public-activities",
-                      "product": "Inventor",
-                      "engine": "Autodesk.Inventor+23, +24, +25",
-                      "risk": "REVIEW",
-                      "configSchema": null,
-                      "outputContract": "outputAssembly.iam",
-                      "ioShape": "sourceFile.iam + configParams.json → outputAssembly.iam",
-                      "modifiesFile": true,
-                      "readOnly": false,
-                      "destructive": false,
-                      "globalOperationId": "inventor.public.configure-model",
-                      "callable": true,
-                      "effect": "write",
-                      "authScopes": [
-                        "code:all"
-                      ],
-                      "sourceVerificationStatus": "NEEDS_LIVE_VERIFICATION",
-                      "workItemTemplate": {
-                        "activityId": "Inventor.Configuration+Beta",
-                        "arguments": {
-                          "inputFile": {
-                            "url": "{signed-input-url}",
-                            "verb": "get"
-                          },
-                          "configParams": {
-                            "url": "{signed-params-url}",
-                            "verb": "get"
-                          },
-                          "outputFile": {
-                            "url": "{signed-output-url}",
-                            "verb": "put"
-                          }
-                        }
-                      }
-                    }
-                  ],
-                  "note": "Beta alias — may change without notice. Arg names require live-API verification."
-                },
-                {
-                  "id": "inventor:InventorBasicPluginTest",
-                  "alias": "InventorBasicPluginTest",
-                  "qualifiedName": "com.autodesk.public.inventor.InventorBasicPluginTest",
-                  "version": "1.0.0",
-                  "product": "Inventor",
-                  "groupId": "inventor:public-activities",
-                  "engine": "Autodesk.Inventor+23, +24, +25",
-                  "risk": "SAFE",
-                  "ioShape": "sourceFile.ipt → testResult.json",
-                  "activityRef": "Inventor.BasicPluginTest+prod",
-                  "accessPattern": "DA-PublicActivity",
-                  "runtimeRouting": {
-                    "supportsMultipleOperations": false
-                  },
-                  "contract": {
-                    "identity": {
-                      "name": "Inventor BasicPluginTest",
-                      "group": "public-activities",
-                      "scope": "Autodesk Public Activity"
-                    },
-                    "io": {
-                      "input": "sourceFile.ipt",
-                      "output": "testResult.json"
-                    },
-                    "execution": {
-                      "accessPattern": "DA-PublicActivity",
-                      "interface": "Autodesk.Inventor+23, +24, +25",
-                      "activityRef": "Inventor.BasicPluginTest+prod",
-                      "note": "No custom AppBundle required — Autodesk-published activity called directly."
-                    },
-                    "governance": {
-                      "riskLevel": "SAFE",
-                      "operationType": "read",
-                      "approval": "Auto-execute"
-                    },
-                    "consumers": {
-                      "targets": [
-                        "AI Agents",
-                        "Developers"
-                      ],
-                      "discovery": "get_capability() → Registry match"
-                    }
-                  },
-                  "description": "Basic plugin health-check for the Inventor DA engine. Autodesk-published public activity. Arg names require live-API verification.",
-                  "apiId": "engine:Inventor",
-                  "capabilityGroupId": "inventor:public-activities",
-                  "authFlows": [
-                    "2LO-client-credentials"
-                  ],
-                  "operations": [
-                    {
-                      "operationId": "basic-plugin-test",
-                      "displayName": "Basic Plugin Test",
-                      "description": "Validate the Inventor DA engine with a minimal plugin test workitem.",
-                      "capabilityId": "inventor:InventorBasicPluginTest",
-                      "groupId": "inventor:public-activities",
-                      "product": "Inventor",
-                      "engine": "Autodesk.Inventor+23, +24, +25",
-                      "risk": "SAFE",
-                      "configSchema": null,
-                      "outputContract": "testResult.json",
-                      "ioShape": "sourceFile.ipt → testResult.json",
-                      "modifiesFile": false,
-                      "readOnly": true,
-                      "destructive": false,
-                      "globalOperationId": "inventor.public.basic-plugin-test",
-                      "callable": true,
-                      "effect": "read",
-                      "authScopes": [
-                        "code:all"
-                      ],
-                      "sourceVerificationStatus": "NEEDS_LIVE_VERIFICATION",
-                      "workItemTemplate": {
-                        "activityId": "Inventor.BasicPluginTest+prod",
-                        "arguments": {
-                          "inputFile": {
-                            "url": "{signed-input-url}",
-                            "verb": "get"
-                          },
-                          "testResult": {
-                            "url": "{signed-output-url}",
-                            "verb": "put"
-                          }
-                        }
-                      }
-                    }
-                  ],
-                  "note": "Arg names require live-API verification."
-                }
-              ]
             }
           ]
         },
@@ -29904,134 +29979,40 @@
               "defaultActivityTemplate": "activity.autodesk.public",
               "defaultConfigTemplate": null,
               "defaultWorkItemTemplate": "workitem.autodesk.public",
-              "note": "Autodesk-published activities. No custom AppBundle required. Call activityId directly in WorkItem.",
-              "capabilityCount": 2,
-              "operationCount": 2,
+              "note": "Autodesk-published 3ds Max activities. UVUnwrapMesh requires the Autodesk-published 3dsMax.UVUnwrap AppBundle.",
+              "capabilityCount": 3,
+              "operationCount": 3,
               "capabilities": [
                 {
-                  "id": "3dsmax:3dsMaxBakeToTexture",
-                  "alias": "3dsMaxBakeToTexture",
-                  "qualifiedName": "com.autodesk.public.3dsmax.3dsMaxBakeToTexture",
+                  "id": "3dsmax:3dsMaxUVUnwrapMeshProd",
+                  "alias": "3dsMaxUVUnwrapMeshProd",
+                  "qualifiedName": "com.autodesk.public.3dsmax.3dsMaxUVUnwrapMeshProd",
                   "version": "1.0.0",
                   "product": "3dsMax",
                   "groupId": "3dsmax:public-activities",
-                  "engine": "Autodesk.3dsMax+2021, +2023, +2024",
+                  "engine": "Autodesk.3dsMax+2019",
                   "risk": "SAFE",
-                  "ioShape": "sourceFile.max + bakeConfig.json → output.max",
-                  "activityRef": "3dsMax.bakeToTexture+Latest",
+                  "ioShape": "InputZip → OutputZip",
+                  "activityRef": "3dsMax.UVUnwrapMesh+prod",
                   "accessPattern": "DA-PublicActivity",
                   "runtimeRouting": {
                     "supportsMultipleOperations": false
                   },
                   "contract": {
                     "identity": {
-                      "name": "3dsMax BakeToTexture",
+                      "name": "3ds Max UV Unwrap Mesh (prod)",
                       "group": "public-activities",
                       "scope": "Autodesk Public Activity"
                     },
                     "io": {
-                      "input": "sourceFile.max + bakeConfig.json",
-                      "output": "output.max"
+                      "input": "InputZip",
+                      "output": "OutputZip"
                     },
                     "execution": {
                       "accessPattern": "DA-PublicActivity",
-                      "interface": "Autodesk.3dsMax+2021, +2023, +2024",
-                      "activityRef": "3dsMax.bakeToTexture+Latest",
-                      "note": "No custom AppBundle required — Autodesk-published activity called directly."
-                    },
-                    "governance": {
-                      "riskLevel": "SAFE",
-                      "operationType": "convert",
-                      "approval": "Auto-execute"
-                    },
-                    "consumers": {
-                      "targets": [
-                        "AI Agents",
-                        "Developers"
-                      ],
-                      "discovery": "get_capability() → Registry match"
-                    }
-                  },
-                  "description": "Bake scene lighting and material textures into a 3ds Max scene file. Autodesk-published public activity. Arg names require live-API verification.",
-                  "apiId": "engine:3dsMax",
-                  "capabilityGroupId": "3dsmax:public-activities",
-                  "authFlows": [
-                    "2LO-client-credentials"
-                  ],
-                  "operations": [
-                    {
-                      "operationId": "bake-to-texture",
-                      "displayName": "Bake to Texture",
-                      "description": "Render and bake lighting/material textures into the scene geometry. Output is the baked scene file.",
-                      "capabilityId": "3dsmax:3dsMaxBakeToTexture",
-                      "groupId": "3dsmax:public-activities",
-                      "product": "3dsMax",
-                      "engine": "Autodesk.3dsMax+2021, +2023, +2024",
-                      "risk": "SAFE",
-                      "configSchema": null,
-                      "outputContract": "output.max",
-                      "ioShape": "sourceFile.max + bakeConfig.json → output.max",
-                      "modifiesFile": false,
-                      "readOnly": false,
-                      "destructive": false,
-                      "globalOperationId": "3dsmax.public.bake-to-texture",
-                      "callable": true,
-                      "effect": "write",
-                      "authScopes": [
-                        "code:all"
-                      ],
-                      "sourceVerificationStatus": "NEEDS_LIVE_VERIFICATION",
-                      "workItemTemplate": {
-                        "activityId": "3dsMax.bakeToTexture+Latest",
-                        "arguments": {
-                          "inputFile": {
-                            "url": "{signed-input-url}",
-                            "verb": "get"
-                          },
-                          "configFile": {
-                            "url": "{signed-params-url}",
-                            "verb": "get"
-                          },
-                          "outputFile": {
-                            "url": "{signed-output-url}",
-                            "verb": "put"
-                          }
-                        }
-                      }
-                    }
-                  ],
-                  "note": "Arg names require live-API verification."
-                },
-                {
-                  "id": "3dsmax:3dsMaxHelloWorld",
-                  "alias": "3dsMaxHelloWorld",
-                  "qualifiedName": "com.autodesk.public.3dsmax.3dsMaxHelloWorld",
-                  "version": "1.0.0",
-                  "product": "3dsMax",
-                  "groupId": "3dsmax:public-activities",
-                  "engine": "Autodesk.3dsMax+2021, +2023, +2024",
-                  "risk": "SAFE",
-                  "ioShape": "sourceFile.max → result.json",
-                  "activityRef": "3dsMax.HelloWorld+Latest",
-                  "accessPattern": "DA-PublicActivity",
-                  "runtimeRouting": {
-                    "supportsMultipleOperations": false
-                  },
-                  "contract": {
-                    "identity": {
-                      "name": "3dsMax HelloWorld",
-                      "group": "public-activities",
-                      "scope": "Autodesk Public Activity"
-                    },
-                    "io": {
-                      "input": "sourceFile.max",
-                      "output": "result.json"
-                    },
-                    "execution": {
-                      "accessPattern": "DA-PublicActivity",
-                      "interface": "Autodesk.3dsMax+2021, +2023, +2024",
-                      "activityRef": "3dsMax.HelloWorld+Latest",
-                      "note": "No custom AppBundle required — Autodesk-published activity called directly."
+                      "interface": "Autodesk.3dsMax+2019",
+                      "activityRef": "3dsMax.UVUnwrapMesh+prod",
+                      "note": "Uses Autodesk-published AppBundle 3dsMax.UVUnwrap+latest."
                     },
                     "governance": {
                       "riskLevel": "SAFE",
@@ -30046,51 +30027,230 @@
                       "discovery": "get_capability() → Registry match"
                     }
                   },
-                  "description": "Hello-world / health-check activity for the 3ds Max DA engine. Autodesk-published demo; no custom AppBundle required. Arg names require live-API verification.",
+                  "description": "UV-unwrap a 3D mesh. Accepts a zipped input; produces jobOutput/archive.zip. Uses the Autodesk-published 3dsMax.UVUnwrap AppBundle.",
                   "apiId": "engine:3dsMax",
                   "capabilityGroupId": "3dsmax:public-activities",
                   "authFlows": [
                     "2LO-client-credentials"
                   ],
+                  "appbundles": [
+                    "3dsMax.UVUnwrap+latest"
+                  ],
                   "operations": [
                     {
-                      "operationId": "hello-world-test",
-                      "displayName": "Hello World Test",
-                      "description": "Validate the 3ds Max DA engine with a minimal hello-world workitem.",
-                      "capabilityId": "3dsmax:3dsMaxHelloWorld",
+                      "operationId": "3dsmaxuvunwrapmeshprod",
+                      "displayName": "3ds Max UV Unwrap Mesh (prod)",
+                      "description": "UV-unwrap a 3D mesh. Accepts a zipped input; produces jobOutput/archive.zip. Uses the Autodesk-published 3dsMax.UVUnwrap AppBundle.",
+                      "capabilityId": "3dsmax:3dsMaxUVUnwrapMeshProd",
                       "groupId": "3dsmax:public-activities",
                       "product": "3dsMax",
-                      "engine": "Autodesk.3dsMax+2021, +2023, +2024",
+                      "engine": "Autodesk.3dsMax+2019",
                       "risk": "SAFE",
                       "configSchema": null,
-                      "outputContract": "result.json",
-                      "ioShape": "sourceFile.max → result.json",
+                      "outputContract": "jobOutput/archive.zip",
+                      "ioShape": "InputZip → OutputZip",
                       "modifiesFile": false,
                       "readOnly": true,
                       "destructive": false,
-                      "globalOperationId": "3dsmax.public.hello-world-test",
+                      "globalOperationId": "3dsmax.3dsmaxuvunwrapmeshprod",
                       "callable": true,
                       "effect": "read",
                       "authScopes": [
                         "code:all"
                       ],
-                      "sourceVerificationStatus": "NEEDS_LIVE_VERIFICATION",
+                      "sourceVerificationStatus": "VERIFIED",
                       "workItemTemplate": {
-                        "activityId": "3dsMax.HelloWorld+Latest",
+                        "activityId": "3dsMax.UVUnwrapMesh+prod",
                         "arguments": {
-                          "inputFile": {
+                          "InputZip": {
                             "url": "{signed-input-url}",
                             "verb": "get"
                           },
-                          "resultFile": {
+                          "OutputZip": {
                             "url": "{signed-output-url}",
-                            "verb": "put"
+                            "verb": "put",
+                            "localName": "jobOutput/archive"
                           }
                         }
                       }
                     }
+                  ]
+                },
+                {
+                  "id": "3dsmax:3dsMaxUVUnwrapMeshLatest",
+                  "alias": "3dsMaxUVUnwrapMeshLatest",
+                  "qualifiedName": "com.autodesk.public.3dsmax.3dsMaxUVUnwrapMeshLatest",
+                  "version": "1.0.0",
+                  "product": "3dsMax",
+                  "groupId": "3dsmax:public-activities",
+                  "engine": "Autodesk.3dsMax+2019",
+                  "risk": "SAFE",
+                  "ioShape": "InputZip → OutputZip",
+                  "activityRef": "3dsMax.UVUnwrapMesh+latest",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "3ds Max UV Unwrap Mesh (latest)",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "InputZip",
+                      "output": "OutputZip"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.3dsMax+2019",
+                      "activityRef": "3dsMax.UVUnwrapMesh+latest",
+                      "note": "Uses Autodesk-published AppBundle 3dsMax.UVUnwrap+latest."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() → Registry match"
+                    }
+                  },
+                  "description": "UV-unwrap a 3D mesh (latest alias). Identical spec to +prod — tracks the most recent published version.",
+                  "apiId": "engine:3dsMax",
+                  "capabilityGroupId": "3dsmax:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
                   ],
-                  "note": "Demo/test activity. Arg names require live-API verification."
+                  "appbundles": [
+                    "3dsMax.UVUnwrap+latest"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "3dsmaxuvunwrapmeshlatest",
+                      "displayName": "3ds Max UV Unwrap Mesh (latest)",
+                      "description": "UV-unwrap a 3D mesh (latest alias). Identical spec to +prod — tracks the most recent published version.",
+                      "capabilityId": "3dsmax:3dsMaxUVUnwrapMeshLatest",
+                      "groupId": "3dsmax:public-activities",
+                      "product": "3dsMax",
+                      "engine": "Autodesk.3dsMax+2019",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "jobOutput/archive.zip",
+                      "ioShape": "InputZip → OutputZip",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "3dsmax.3dsmaxuvunwrapmeshlatest",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "VERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "3dsMax.UVUnwrapMesh+latest",
+                        "arguments": {
+                          "InputZip": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "OutputZip": {
+                            "url": "{signed-output-url}",
+                            "verb": "put",
+                            "localName": "jobOutput/archive"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "3dsmax:3dsMaxOpenNetworkTests",
+                  "alias": "3dsMaxOpenNetworkTests",
+                  "qualifiedName": "com.autodesk.public.3dsmax.3dsMaxOpenNetworkTests",
+                  "version": "1.0.0",
+                  "product": "3dsMax",
+                  "groupId": "3dsmax:public-activities",
+                  "engine": "Autodesk.3dsMax+2025",
+                  "risk": "SAFE",
+                  "ioShape": "(no input) → (test result log)",
+                  "activityRef": "3dsMax.OpenNetworkTests+Latest",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "3ds Max Open Network Access Tests",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "(no input)",
+                      "output": "(test result log)"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.3dsMax+2025",
+                      "activityRef": "3dsMax.OpenNetworkTests+Latest",
+                      "note": "Internal test; uses Autodesk.TestsApp+Latest AppBundle."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() → Registry match"
+                    }
+                  },
+                  "description": "Internal Autodesk test activity — verifies that open-network access is available inside the DA worker. No user-facing inputs or outputs.",
+                  "apiId": "engine:3dsMax",
+                  "capabilityGroupId": "3dsmax:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "appbundles": [
+                    "Autodesk.TestsApp+Latest"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "3dsmaxopennetworktests",
+                      "displayName": "3ds Max Open Network Access Tests",
+                      "description": "Internal Autodesk test activity — verifies that open-network access is available inside the DA worker. No user-facing inputs or outputs.",
+                      "capabilityId": "3dsmax:3dsMaxOpenNetworkTests",
+                      "groupId": "3dsmax:public-activities",
+                      "product": "3dsMax",
+                      "engine": "Autodesk.3dsMax+2025",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "(none)",
+                      "ioShape": "(no input) → (test result log)",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "3dsmax.3dsmaxopennetworktests",
+                      "callable": false,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "VERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "3dsMax.OpenNetworkTests+Latest",
+                        "arguments": {}
+                      }
+                    }
+                  ]
                 }
               ]
             }

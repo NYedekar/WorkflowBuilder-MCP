@@ -136,6 +136,7 @@ export async function handleProcessFile(input) {
         query_params: {},
         body: effectiveBody,
         config: {},
+        inline_args: {},
         output_bucket_policy: "transient",
     });
     if (execResult.status === "pending") {

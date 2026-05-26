@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { resolveCredential, DEFAULT_SCOPES } from "../auth/credential-resolver.js";
 import { findCapabilityById, findOperationByGlobalId } from "../lib/registry-client.js";
-import { getActivity, ensureBucket, uploadJsonToOss, submitWorkItem, pollWorkItem, getSignedDownloadUrl, getSignedS3UploadUrl, finalizeS3Upload, DAError, } from "../lib/da-client.js";
+import { getActivity, getNickname, ensureBucket, uploadJsonToOss, submitWorkItem, pollWorkItem, getSignedDownloadUrl, getSignedS3UploadUrl, finalizeS3Upload, DAError, } from "../lib/da-client.js";
 // getSignedDownloadUrl is used for oss:// → signed HTTPS input URL conversion (DA WorkItem inputs)
 // ── Schema ────────────────────────────────────────────────────────────────
 export const executeWorkflowSchema = z.object({
@@ -73,6 +73,14 @@ export const executeWorkflowSchema = z.object({
         .optional()
         .describe("Engine-API Activity alias override. Defaults to 'prod'. " +
         "Ignored for REST operations."),
+    inline_args: z
+        .record(z.string())
+        .optional()
+        .default({})
+        .describe("Inline string values for Engine-API WorkItem arguments with verb='read'. " +
+        "Keys are argument names as defined in the activity (e.g. PersonalAccessToken, TaskParameters). " +
+        "Values are passed as data: URIs directly in the WorkItem body — no OSS upload needed. " +
+        "Example: { \"PersonalAccessToken\": \"your-pat\", \"TaskParameters\": \"{\\\"key\\\": \\\"value\\\"}\" }."),
     poll_timeout_ms: z
         .number()
         .int()
@@ -299,13 +307,19 @@ async function executeRest(cap, op, input, t0) {
 }
 // ── Engine-API (Design Automation) execution ──────────────────────────────
 async function executeEngineApi(cap, op, input, t0) {
-    if (!input.input_file_url) {
+    // Determine if the activity actually needs an input file (has any get-verb arg).
+    const templateArgs = op.workItemTemplate?.arguments ?? {};
+    const workItemArgs_ = op.workItemArguments ?? {};
+    const hasGetArg = Object.values(templateArgs).some((a) => a.verb === "get") ||
+        Object.values(workItemArgs_).some((a) => a.verb === "get") ||
+        (!op.workItemTemplate && !op.workItemArguments); // generic fallback always needs input
+    if (!input.input_file_url && hasGetArg) {
         return {
             status: "error",
             mode: "engine_api",
             capability: capSummary(cap),
             operation: opSummary(op),
-            error: "input_file_url is required for Engine-API capabilities.",
+            error: "input_file_url is required for this Engine-API capability.",
             hint: "Provide an OSS URL (oss://bucket/file.rvt), HTTPS URL, or signed URL for the input file.",
         };
     }
@@ -320,10 +334,12 @@ async function executeEngineApi(cap, op, input, t0) {
             hint: "Run authenticate_aps first to configure credentials.",
         };
     }
+    // Resolve the DA nickname (separate from OAuth client_id — fetched from forgeapps/me).
+    const nickname = await getNickname(cred.access_token, cred.client_id);
     const engineAlias = input.engine_version ?? "prod";
     const ts = Date.now();
     // DA WorkItems cannot resolve oss:// URLs — convert to signed HTTPS first
-    let resolvedInputUrl = input.input_file_url;
+    let resolvedInputUrl = input.input_file_url ?? "";
     if (resolvedInputUrl.startsWith("oss://")) {
         try {
             resolvedInputUrl = await getSignedDownloadUrl(cred.access_token, resolvedInputUrl);
@@ -345,17 +361,18 @@ async function executeEngineApi(cap, op, input, t0) {
         return { status: "error", error: `Could not ensure output bucket: ${String(err)}` };
     }
     // ── Determine activity ID ─────────────────────────────────────────────
-    // Prefer workItemArguments (has localName support) → workItemTemplate → generic fallback
+    // Public Autodesk activities have a fixed ID (no nickname substitution needed).
+    // User-owned activities use {NICKNAME} in the template or are built from cap.alias.
     let activityId;
     if (op.workItemArguments) {
         const activityName = op.activityId ?? cap.alias;
-        activityId = `${cred.client_id}.${activityName}+${engineAlias}`;
+        activityId = `${nickname}.${activityName}+${engineAlias}`;
     }
     else if (op.workItemTemplate) {
-        activityId = op.workItemTemplate.activityId.replace(/\{NICKNAME\}/g, cred.client_id);
+        activityId = op.workItemTemplate.activityId.replace(/\{NICKNAME\}/g, nickname);
     }
     else {
-        activityId = `${cred.client_id}.${cap.alias}+${engineAlias}`;
+        activityId = `${nickname}.${cap.alias}+${engineAlias}`;
     }
     // ── Check activity exists ─────────────────────────────────────────────
     let activityExists;
@@ -430,9 +447,20 @@ async function executeEngineApi(cap, op, input, t0) {
         }
     }
     else if (op.workItemTemplate) {
-        // Legacy: workItemTemplate arg shape (no localName — outputs default to .json)
         for (const [argName, argDef] of Object.entries(op.workItemTemplate.arguments)) {
-            if (argDef.verb === "get") {
+            if (argDef.verb === "read") {
+                // Inline string arg — caller provides value via inline_args.
+                // Encoded as a data: URI so DA passes it as an in-memory string to the activity.
+                const inlineValue = (input.inline_args ?? {})[argName];
+                if (inlineValue !== undefined) {
+                    workItemArgs[argName] = {
+                        url: `data:text/plain,${encodeURIComponent(inlineValue)}`,
+                        verb: "read",
+                    };
+                }
+                // No inline_args value supplied → skip (arg is optional in the activity).
+            }
+            else if (argDef.verb === "get") {
                 if (argName === "params" && input.config && Object.keys(input.config).length > 0) {
                     const paramsKey = `wf-params-${cap.alias}-${ts}.json`;
                     await uploadJsonToOss(cred.access_token, safeBucketKey, paramsKey, input.config);
@@ -444,7 +472,10 @@ async function executeEngineApi(cap, op, input, t0) {
                 }
             }
             else {
-                const outKey = `wf-output-${cap.alias}-${argName}-${ts}.json`;
+                // put / post → output arg. Use the localName from the registry for the correct extension.
+                const localName = argDef.localName ?? "result.json";
+                const ext = localName.includes(".") ? "." + localName.split(".").pop() : ".json";
+                const outKey = `wf-output-${cap.alias}-${argName}-${ts}${ext}`;
                 let s3Upload;
                 try {
                     s3Upload = await getSignedS3UploadUrl(cred.access_token, safeBucketKey, outKey);
@@ -452,10 +483,11 @@ async function executeEngineApi(cap, op, input, t0) {
                 catch (err) {
                     return { status: "error", error: `Could not get S3 upload URL for output '${argName}': ${String(err)}` };
                 }
+                const ct = outputContentType(outKey);
                 workItemArgs[argName] = {
                     url: s3Upload.urls[0],
                     verb: "put",
-                    headers: { "Content-Type": "application/json" },
+                    ...(ct ? { headers: { "Content-Type": ct } } : {}),
                 };
                 outputOssUrls.push(`oss://${safeBucketKey}/${outKey}`);
                 s3FinalizeQueue.push({ bucketKey: safeBucketKey, objectKey: outKey, uploadKey: s3Upload.uploadKey, ossUrl: `oss://${safeBucketKey}/${outKey}` });

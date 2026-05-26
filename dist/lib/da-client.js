@@ -2,6 +2,28 @@
 const DA_REGION = process.env.APS_DA_REGION ?? "us-east";
 const DA_BASE = `https://developer.api.autodesk.com/da/${DA_REGION}/v3`;
 const OSS_BASE = "https://developer.api.autodesk.com/oss/v2";
+// ── DA Nickname ───────────────────────────────────────────────────────────
+// One lookup per client_id per process lifetime — nickname never changes.
+const nicknameCache = new Map();
+export async function getNickname(token, clientId) {
+    const cached = nicknameCache.get(clientId);
+    if (cached)
+        return cached;
+    try {
+        const res = await fetch(`${DA_BASE}/forgeapps/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok)
+            return clientId; // fall back silently — better than blocking execution
+        const json = (await res.json());
+        const nickname = json.nickname ?? json.id ?? clientId;
+        nicknameCache.set(clientId, nickname);
+        return nickname;
+    }
+    catch {
+        return clientId;
+    }
+}
 export class DAError extends Error {
     statusCode;
     body;

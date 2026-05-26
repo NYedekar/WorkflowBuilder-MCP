@@ -41,10 +41,10 @@ export interface OperationRecord {
   // Custom AppBundle fields — present only on callable=true engine ops
   workItemTemplate?: {
     activityId: string;
-    arguments: Record<string, { verb: "get" | "put" }>;
+    arguments: Record<string, { verb: "get" | "put" | "post" | "read"; localName?: string; zip?: boolean }>;
   };
   activityId?: string;
-  workItemArguments?: Record<string, { verb: "get" | "put"; localName?: string; optional?: boolean }>;
+  workItemArguments?: Record<string, { verb: "get" | "put" | "post" | "read"; localName?: string; optional?: boolean }>;
 }
 
 export interface CapabilityRecord {
