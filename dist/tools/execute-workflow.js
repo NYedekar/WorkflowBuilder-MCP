@@ -301,7 +301,7 @@ async function executeRest(cap, op, input, t0) {
     }
     // Execute HTTP call
     const restController = new AbortController();
-    const restTimer = setTimeout(() => restController.abort(), 20_000);
+    const restTimer = setTimeout(() => restController.abort(), 90_000);
     let res;
     try {
         res = await fetch(fullUrl, { method, headers, body: bodyStr, signal: restController.signal });
