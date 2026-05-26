@@ -428,21 +428,33 @@ async function executeRest(
   }
 
   // Execute HTTP call
-  const restController = new AbortController();
-  const restTimer = setTimeout(() => restController.abort(), 90_000);
-  let res: Response;
-  try {
-    res = await fetch(fullUrl, { method, headers, body: bodyStr, signal: restController.signal });
-  } catch (err) {
-    return {
-      status: "error",
-      mode: "rest",
-      capability: capSummary(cap),
-      operation: opSummary(op),
-      error: `Network error: ${String(err)}`,
-    };
-  } finally {
-    clearTimeout(restTimer);
+  // Retry up to 2 times on timeout or connection-reset — APS can stall transiently.
+  let res!: Response;
+  const MAX_REST_RETRIES = 2;
+  for (let attempt = 0; attempt <= MAX_REST_RETRIES; attempt++) {
+    if (attempt > 0) await new Promise<void>((r) => setTimeout(r, 1_000 * attempt));
+    const restController = new AbortController();
+    const restTimer = setTimeout(() => restController.abort(), 90_000);
+    try {
+      res = await fetch(fullUrl, { method, headers, body: bodyStr, signal: restController.signal });
+      break;
+    } catch (err) {
+      clearTimeout(restTimer);
+      const isRetryable =
+        (err instanceof Error && err.name === "AbortError") ||
+        (err instanceof TypeError);
+      if (!isRetryable || attempt === MAX_REST_RETRIES) {
+        return {
+          status: "error",
+          mode: "rest",
+          capability: capSummary(cap),
+          operation: opSummary(op),
+          error: `Network error after ${attempt + 1} attempt(s): ${String(err)}`,
+        };
+      }
+    } finally {
+      clearTimeout(restTimer);
+    }
   }
 
   const durationMs = Date.now() - t0;
@@ -465,7 +477,7 @@ async function executeRest(
       response: responseBody,
       durationMs,
       error: `HTTP ${res.status} ${res.statusText}`,
-      hint: httpHint(res.status),
+      hint: httpHint(res.status, fullUrl),
     };
   }
 
@@ -913,10 +925,21 @@ function resolveScopes(authScopes: string[], fallback: string[]): string[] {
   return clean.length > 0 ? clean : fallback;
 }
 
-function httpHint(status: number): string {
+function httpHint(status: number, url?: string): string {
   if (status === 401) return "Token invalid or expired. Run authenticate_aps or provide a valid bearer_token.";
   if (status === 403) return "Insufficient scopes. Check the authScopes on the operation via get_capability.";
-  if (status === 404) return "Resource not found. Verify path_params (IDs, keys) are correct.";
+  if (status === 404) {
+    let hint = "Resource not found. Verify path_params (IDs, keys) are correct.";
+    // APS quirk: SVF2/manifest geometry GUIDs are different from metadata API GUIDs.
+    // Using a manifest GUID in fetch_all_properties or fetch_object_tree returns 404.
+    if (url && (url.includes("/modelderivative/") || url.includes("/metadata/") || url.includes("/properties"))) {
+      hint +=
+        " GUID MISMATCH WARNING: If you used a GUID from the SVF2 manifest or translate response, " +
+        "note that manifest geometry GUIDs differ from metadata API GUIDs. " +
+        "Call list_model_views first to get the correct GUIDs for fetch_object_tree and fetch_all_properties.";
+    }
+    return hint;
+  }
   if (status === 409) return "Conflict — resource may already exist.";
   if (status === 422) return "Unprocessable entity — check the body payload matches the expected schema.";
   if (status === 429) return "Rate limited. Retry after a short wait.";

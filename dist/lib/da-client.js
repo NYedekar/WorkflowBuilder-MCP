@@ -5,15 +5,29 @@ const OSS_BASE = "https://developer.api.autodesk.com/oss/v2";
 // ── Timeout-aware fetch ───────────────────────────────────────────────────
 // Every APS/S3 call must have a deadline. Without one, a stalled TCP connection
 // hangs the MCP server indefinitely and forces the user to resubmit.
-async function fetchWithTimeout(url, options = {}, timeoutMs = 20_000) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-        return await fetch(url, { ...options, signal: controller.signal });
+// maxRetries=2 by default for all APS API calls.
+// Pass maxRetries=0 for S3 PUT uploads — partial uploads cannot safely be retried.
+async function fetchWithTimeout(url, options = {}, timeoutMs = 20_000, maxRetries = 2) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        if (attempt > 0)
+            await sleep(1_000 * attempt); // 1s, 2s backoff
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            return await fetch(url, { ...options, signal: controller.signal });
+        }
+        catch (err) {
+            clearTimeout(timer);
+            const isRetryable = (err instanceof Error && err.name === "AbortError") || // timeout
+                (err instanceof TypeError); // connection reset / network error
+            if (!isRetryable || attempt === maxRetries)
+                throw err;
+        }
+        finally {
+            clearTimeout(timer);
+        }
     }
-    finally {
-        clearTimeout(timer);
-    }
+    throw new Error("fetchWithTimeout: exhausted retries");
 }
 // ── DA Nickname ───────────────────────────────────────────────────────────
 // One lookup per client_id per process lifetime — nickname never changes.
@@ -196,7 +210,7 @@ export async function uploadToS3(signedUrl, fileBuffer, contentType) {
         method: "PUT",
         headers: { "Content-Type": contentType },
         body: fileBuffer,
-    }, 120_000);
+    }, 120_000, 0); // no retry — partial S3 uploads cannot be safely retried
     if (!res.ok) {
         const body = await res.text();
         throw new DAError(`S3 upload failed (HTTP ${res.status}): ${body}`, res.status);

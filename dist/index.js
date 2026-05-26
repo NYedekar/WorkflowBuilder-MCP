@@ -70,11 +70,15 @@ const server = new Server({
         "immediately call get_download_link(oss_url=response_oss_url, filename='<op>-response.json') " +
         "and render the link — do NOT attempt to read, parse, or summarise the stored JSON.\n\n" +
         "── SAVING DATA TO MAC ───────────────────────────────────────────────────\n\n" +
-        "CRITICAL: Claude's bash environment is sandboxed — it CANNOT write files to the Mac filesystem. " +
-        "cp, mv, tee, write, or any bash file-write to /Users/... will FAIL silently or with permission errors. " +
-        "To save any content (JSON, CSV, Markdown, aggregated results) to the Mac, ALWAYS use save_to_mac. " +
-        "This includes: assembled metadata, summarized property dumps, multi-call aggregations, any synthesized output. " +
-        "Never attempt bash file writes to Mac paths.",
+        "RULE #1 FOR FILE WRITES: bash CANNOT write to the Mac filesystem. " +
+        "Any cp, mv, tee, echo >, or open() in bash targeting /Users/... or ~/... will fail with FileNotFoundError or permission denied. " +
+        "This is a hard sandbox boundary — bash runs in an isolated container with no access to Mac disk.\n" +
+        "ALWAYS use save_to_mac instead:\n" +
+        "  • Synthesized JSON, CSV, Markdown, or plain text built from API responses → save_to_mac\n" +
+        "  • Aggregated results from multiple tool calls → save_to_mac\n" +
+        "  • Any file you would otherwise write with bash → save_to_mac\n" +
+        "  • Binary/OSS outputs (PDF, DWG, RVT) → get_result(save_to=...) or get_download_link\n" +
+        "Do NOT use bash for any file write. Do NOT use present_files as a workaround. Use save_to_mac.",
 });
 // ─── Tool list ────────────────────────────────────────────────────────────
 server.setRequestHandler(ListToolsRequestSchema, async () => {

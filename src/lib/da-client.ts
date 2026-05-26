@@ -8,18 +8,31 @@ const OSS_BASE = "https://developer.api.autodesk.com/oss/v2";
 // Every APS/S3 call must have a deadline. Without one, a stalled TCP connection
 // hangs the MCP server indefinitely and forces the user to resubmit.
 
+// maxRetries=2 by default for all APS API calls.
+// Pass maxRetries=0 for S3 PUT uploads — partial uploads cannot safely be retried.
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
-  timeoutMs = 20_000
+  timeoutMs = 20_000,
+  maxRetries = 2
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) await sleep(1_000 * attempt); // 1s, 2s backoff
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } catch (err) {
+      clearTimeout(timer);
+      const isRetryable =
+        (err instanceof Error && err.name === "AbortError") || // timeout
+        (err instanceof TypeError);                            // connection reset / network error
+      if (!isRetryable || attempt === maxRetries) throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  throw new Error("fetchWithTimeout: exhausted retries");
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -297,7 +310,7 @@ export async function uploadToS3(signedUrl: string, fileBuffer: Buffer, contentT
     method: "PUT",
     headers: { "Content-Type": contentType },
     body: fileBuffer as unknown as BodyInit,
-  }, 120_000);
+  }, 120_000, 0); // no retry — partial S3 uploads cannot be safely retried
 
   if (!res.ok) {
     const body = await res.text();
