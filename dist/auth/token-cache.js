@@ -1,0 +1,23 @@
+// Module-level cache — persists for the lifetime of the MCP process.
+const cache = new Map();
+// Refresh the token 5 min before it actually expires to avoid mid-request failures.
+const REFRESH_BUFFER_MS = 5 * 60 * 1000;
+export function getCachedToken(key) {
+    const entry = cache.get(key);
+    if (!entry)
+        return null;
+    if (Date.now() + REFRESH_BUFFER_MS >= entry.expires_at) {
+        cache.delete(key);
+        return null;
+    }
+    return entry.access_token;
+}
+export function setCachedToken(key, token, expiresInSeconds) {
+    cache.set(key, {
+        access_token: token,
+        expires_at: Date.now() + expiresInSeconds * 1000,
+    });
+}
+export function clearCachedToken(key) {
+    cache.delete(key);
+}

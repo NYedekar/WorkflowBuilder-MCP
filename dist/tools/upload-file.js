@@ -1,0 +1,213 @@
+import { readFileSync, statSync, existsSync } from "fs";
+import { basename, extname } from "path";
+import { homedir } from "os";
+import { z } from "zod";
+import { resolveCredential } from "../auth/credential-resolver.js";
+import { getSignedS3UploadUrl, uploadToS3, finalizeS3Upload, getSignedDownloadUrl, DAError, } from "../lib/da-client.js";
+// ── Schema ────────────────────────────────────────────────────────────────
+export const uploadFileSchema = z.object({
+    file_path: z
+        .string()
+        .describe("Full path to the file — local folder, ~/Downloads/, or OneDrive (e.g. ~/Library/CloudStorage/OneDrive-Autodesk/…). " +
+        "Chat attachments (/mnt/user-data/uploads/) cannot be read by the MCP server — " +
+        "on bridge_required, ask the user for the file's actual Mac path."),
+    bucket_key: z
+        .string()
+        .optional()
+        .describe("Target OSS bucket key. Created automatically if it doesn't exist. " +
+        "Defaults to '{clientId}-uploads'. " +
+        "Bucket keys: lowercase letters, numbers, and hyphens only, 3–128 chars."),
+    object_key: z
+        .string()
+        .optional()
+        .describe("Object name within the bucket. Defaults to the filename from file_path. " +
+        "Use a path-style key to organise uploads, e.g. 'revit/2024/project.rvt'."),
+    bucket_policy: z
+        .enum(["transient", "temporary", "persistent"])
+        .optional()
+        .default("transient")
+        .describe("Retention policy for a newly created bucket. " +
+        "'transient' = 24h TTL (default, good for workflow inputs), " +
+        "'temporary' = 30-day TTL, " +
+        "'persistent' = no automatic deletion."),
+    signed_url_expiry_minutes: z
+        .number()
+        .int()
+        .min(1)
+        .max(60)
+        .optional()
+        .default(60)
+        .describe("Expiry in minutes for the returned signed download URL. Default: 60."),
+});
+// ── Handler ───────────────────────────────────────────────────────────────
+const UPLOAD_SCOPES = [
+    "data:read",
+    "data:write",
+    "data:create",
+    "bucket:create",
+    "bucket:read",
+    "bucket:update",
+];
+function normalizePath(raw) {
+    let p = raw.trim().replace(/^['"]|['"]$/g, "");
+    if (p.startsWith("~/") || p === "~")
+        p = homedir() + p.slice(1);
+    return p;
+}
+// Paths only accessible inside Claude's bash sandbox, not by the Mac MCP process
+function isSandboxPath(p) {
+    return p.startsWith("/mnt/user-data/") || p.startsWith("/mnt/");
+}
+export async function handleUploadFile(input) {
+    const resolvedPath = normalizePath(input.file_path);
+    const filename = basename(resolvedPath);
+    const contentType = detectContentType(filename);
+    // ── Sandbox check (before auth) ───────────────────────────────────────────
+    // MCP server (Mac) cannot read /mnt/ paths; they exist only in Claude's sandbox.
+    if (isSandboxPath(resolvedPath) || !existsSync(resolvedPath)) {
+        const macPath = `~/Downloads/${filename}`;
+        return {
+            status: "bridge_required",
+            mac_path_hint: macPath,
+            REQUIRED_ACTION: `File '${filename}' is a chat attachment — the MCP server cannot read it directly. ` +
+                `Please provide the file's actual path on your Mac (e.g. ~/Downloads/${filename}, a OneDrive path, or any local folder), ` +
+                `then call upload_file again with that path.`,
+        };
+    }
+    // ── APS auth ──────────────────────────────────────────────────────────────
+    let cred;
+    try {
+        cred = await resolveCredential(UPLOAD_SCOPES);
+    }
+    catch (err) {
+        return {
+            status: "error",
+            error: `APS auth failed: ${String(err)}`,
+            hint: "Run authenticate_aps first to configure credentials.",
+        };
+    }
+    const bucketKey = sanitizeBucketKey(input.bucket_key ?? `${cred.client_id}-uploads`);
+    const objectKey = input.object_key ?? filename;
+    // ── Resolve file content ─────────────────────────────────────────────────
+    let fileBuffer;
+    let fileSizeBytes;
+    const stat = statSync(resolvedPath);
+    if (!stat.isFile()) {
+        return { status: "error", error: `Path is not a file: '${resolvedPath}'` };
+    }
+    try {
+        fileBuffer = readFileSync(resolvedPath);
+    }
+    catch (err) {
+        return { status: "error", error: `Could not read file: ${String(err)}` };
+    }
+    fileSizeBytes = stat.size;
+    try {
+        await ensureBucketWithPolicy(cred.access_token, bucketKey, input.bucket_policy);
+    }
+    catch (err) {
+        return {
+            status: "error",
+            error: `Could not ensure bucket '${bucketKey}': ${String(err)}`,
+            hint: "Bucket keys must be 3–128 chars, lowercase letters, numbers, and hyphens only.",
+        };
+    }
+    let signedUpload;
+    try {
+        signedUpload = await getSignedS3UploadUrl(cred.access_token, bucketKey, objectKey, input.signed_url_expiry_minutes);
+    }
+    catch (err) {
+        return { status: "error", error: `Could not get upload URL: ${String(err)}` };
+    }
+    if (!signedUpload.urls?.length) {
+        return { status: "error", error: "OSS returned no upload URL." };
+    }
+    try {
+        await uploadToS3(signedUpload.urls[0], fileBuffer, contentType);
+    }
+    catch (err) {
+        return { status: "error", error: `S3 upload failed: ${String(err)}` };
+    }
+    try {
+        await finalizeS3Upload(cred.access_token, bucketKey, objectKey, signedUpload.uploadKey);
+    }
+    catch (err) {
+        return { status: "error", error: `Finalize upload failed: ${String(err)}` };
+    }
+    const ossUrl = `oss://${bucketKey}/${objectKey}`;
+    let signedDownloadUrl;
+    try {
+        signedDownloadUrl = await getSignedDownloadUrl(cred.access_token, ossUrl);
+    }
+    catch {
+        // Non-fatal
+    }
+    return {
+        status: "success",
+        oss_url: ossUrl,
+        signed_download_url: signedDownloadUrl,
+        bucket_key: bucketKey,
+        object_key: objectKey,
+        file_size_bytes: fileSizeBytes,
+        content_type: contentType,
+    };
+}
+// ── Helpers ───────────────────────────────────────────────────────────────
+function sanitizeBucketKey(raw) {
+    return raw
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 128)
+        .padEnd(3, "0");
+}
+async function ensureBucketWithPolicy(token, bucketKey, policy) {
+    const OSS_BASE = "https://developer.api.autodesk.com/oss/v2";
+    const check = await fetch(`${OSS_BASE}/buckets/${bucketKey}/details`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (check.ok)
+        return;
+    if (check.status !== 404) {
+        const body = await check.text();
+        throw new DAError(`Bucket check failed: ${body}`, check.status);
+    }
+    const create = await fetch(`${OSS_BASE}/buckets`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ bucketKey, policyKey: policy }),
+    });
+    if (!create.ok) {
+        const body = await create.text();
+        throw new DAError(`Create bucket failed: ${body}`, create.status);
+    }
+}
+const CONTENT_TYPES = {
+    ".rvt": "application/octet-stream",
+    ".rfa": "application/octet-stream",
+    ".dwg": "application/acad",
+    ".dxf": "application/dxf",
+    ".ipt": "application/octet-stream",
+    ".iam": "application/octet-stream",
+    ".idw": "application/octet-stream",
+    ".ipn": "application/octet-stream",
+    ".f3d": "application/octet-stream",
+    ".f3z": "application/zip",
+    ".nwd": "application/octet-stream",
+    ".nwc": "application/octet-stream",
+    ".ifc": "application/x-step",
+    ".obj": "text/plain",
+    ".fbx": "application/octet-stream",
+    ".step": "application/x-step",
+    ".stp": "application/x-step",
+    ".stl": "application/octet-stream",
+    ".3dm": "application/octet-stream",
+    ".max": "application/octet-stream",
+    ".zip": "application/zip",
+    ".json": "application/json",
+    ".pdf": "application/pdf",
+};
+function detectContentType(filename) {
+    const ext = extname(filename).toLowerCase();
+    return CONTENT_TYPES[ext] ?? "application/octet-stream";
+}

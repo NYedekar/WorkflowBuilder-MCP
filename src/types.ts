@@ -11,7 +11,7 @@ export interface Intent {
   raw?: string;
 }
 
-export type RelationshipType = "sequential" | "parallel" | "conditional" | "loop" | "trigger";
+export type RelationshipType = "sequential" | "parallel" | "conditional" | "loop" | "after_loop" | "trigger";
 
 export interface IntentRelationship {
   from: string;
@@ -40,6 +40,9 @@ export interface WorkflowEdge {
   type: RelationshipType;
   condition?: string;
   confidence: number;
+  // Internal marker for planner-injected synthetic edges (loop-completion deps).
+  // Never set on caller edges; never surfaced in dag.edges[] in the response.
+  isSynthetic?: boolean;
 }
 
 export interface WorkflowDAG {
@@ -55,5 +58,6 @@ export interface WorkflowDAG {
     edge_count: number;
     has_cycles: boolean;
     parallel_groups: string[][];
+    warnings: string[];
   };
 }
