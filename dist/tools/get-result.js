@@ -1,4 +1,7 @@
 import { z } from "zod";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
 import { resolveCredential, DEFAULT_SCOPES } from "../auth/credential-resolver.js";
 import { DAError, getSignedS3DownloadUrl } from "../lib/da-client.js";
 export const getResultSchema = z.object({
@@ -31,6 +34,21 @@ export const getResultSchema = z.object({
         .describe("Force UTF-8 text decoding even if content-type and sniffing suggest binary. " +
         "Use when you know the file is text (e.g. a .json output stored with application/octet-stream) " +
         "and the automatic detection is wrong."),
+    save_to: z
+        .string()
+        .optional()
+        .describe("Local folder path to save the downloaded file (e.g. ~/Downloads or /Users/you/outputs). " +
+        "When provided, the full file is downloaded and written to <save_to>/<filename>. " +
+        "The folder is created if it does not exist. ~ is expanded to the home directory. " +
+        "The saved_to field in the response contains the resolved file path. " +
+        "For binary files (PDF, ZIP, RVT, DWG, images), this is the recommended way to retrieve " +
+        "the output — binary content cannot be displayed as text."),
+    save_filename: z
+        .string()
+        .optional()
+        .describe("Override the filename used when saving (requires save_to). " +
+        "Use when the OSS object key has a misleading name (e.g. 'result.json' that is actually a PDF). " +
+        "Example: 'sampledwg_converted.pdf'. If omitted, the filename is taken from the OSS object key."),
 });
 // ── Content detection ─────────────────────────────────────────────────────
 // APS Design Automation always stores outputs as application/octet-stream regardless
@@ -56,10 +74,17 @@ const BINARY_MAGIC = [
     [0x00, 0x01, 0x00, 0x00], // TrueType font / ICO
 ];
 function detectContent(bytes, objectKey) {
-    // 1. Extension check — highest priority
+    if (bytes.length === 0)
+        return "text";
+    // 1. Binary magic bytes — highest priority, overrides extension.
+    // APS DA often stores PDFs with a .json object key; magic bytes are authoritative.
+    for (const sig of BINARY_MAGIC) {
+        if (sig.every((b, i) => bytes[i] === b))
+            return "binary";
+    }
+    // 2. Extension check for text subtype classification
     const ext = (objectKey.split(".").pop() ?? "").toLowerCase();
     if (TEXT_EXTENSIONS.has(ext)) {
-        // Confirm by peeking at first byte
         if (ext === "json")
             return "json";
         if (ext === "csv" || ext === "tsv")
@@ -67,13 +92,6 @@ function detectContent(bytes, objectKey) {
         if (ext === "xml" || ext === "svg")
             return "xml";
         return "text";
-    }
-    if (bytes.length === 0)
-        return "text";
-    // 2. Binary magic bytes
-    for (const sig of BINARY_MAGIC) {
-        if (sig.every((b, i) => bytes[i] === b))
-            return "binary";
     }
     // 3. Sample 512 bytes for control characters
     const sample = bytes.slice(0, Math.min(512, bytes.length));
@@ -96,6 +114,15 @@ function detectContent(bytes, objectKey) {
     if ((sampleStr.includes(",") || sampleStr.includes("\t")) && sampleStr.includes("\n"))
         return "csv";
     return "text";
+}
+// ── File save helper ──────────────────────────────────────────────────────
+function resolveSavePath(folder, filename) {
+    const expanded = folder.startsWith("~")
+        ? path.join(os.homedir(), folder.slice(1))
+        : folder;
+    const resolved = path.resolve(expanded);
+    fs.mkdirSync(resolved, { recursive: true });
+    return path.join(resolved, filename);
 }
 // ── Handler ───────────────────────────────────────────────────────────────
 export async function handleGetResult(input) {
@@ -145,7 +172,42 @@ export async function handleGetResult(input) {
             error: `Could not get download URL: ${String(err)}`,
         };
     }
-    // ── Step 2: Fetch bytes from S3 using Range to avoid downloading the full file ─
+    // ── Step 2a: Full download + save (when save_to is provided) ─────────────
+    // Fetch the entire file without a Range header, write it to disk, then
+    // continue to the content-detection + preview path below.
+    let savedTo;
+    if (input.save_to) {
+        const filename = input.save_filename ?? (objectKey.split("/").pop() ?? objectKey);
+        let saveRes;
+        try {
+            saveRes = await fetch(signedUrl);
+        }
+        catch (err) {
+            return { status: "error", error: `Network error downloading full file: ${String(err)}` };
+        }
+        if (!saveRes.ok) {
+            const body = await saveRes.text().catch(() => "");
+            return {
+                status: "error",
+                oss_url: input.oss_url,
+                error: `S3 full download failed (HTTP ${saveRes.status}): ${body.slice(0, 500)}`,
+            };
+        }
+        try {
+            const fullBytes = new Uint8Array(await saveRes.arrayBuffer());
+            savedTo = resolveSavePath(input.save_to, filename);
+            fs.writeFileSync(savedTo, fullBytes);
+        }
+        catch (err) {
+            return {
+                status: "error",
+                oss_url: input.oss_url,
+                error: `Failed to save file: ${String(err)}`,
+                hint: `Check that the folder path '${input.save_to}' is writable.`,
+            };
+        }
+    }
+    // ── Step 2b: Range fetch for content preview ──────────────────────────────
     // offset_chars is treated as a byte offset in the Range header. For ASCII-dominated
     // APS outputs (JSON, CSV) byte offset == char offset. For the rare case of multi-byte
     // UTF-8 content, next_offset is computed from the actual encoded byte length of the
@@ -204,6 +266,11 @@ export async function handleGetResult(input) {
             detected = "text";
     }
     if (detected === "binary") {
+        const binaryContent = savedTo
+            ? `[Binary file — ${sizeBytes.toLocaleString()} bytes. Saved to: ${savedTo}]`
+            : `[Binary file — ${sizeBytes.toLocaleString()} bytes. ` +
+                `This is a non-text format (PDF, image, compressed archive, or proprietary binary). ` +
+                `It cannot be displayed as text. Pass save_to with a local folder path to download it.]`;
         return {
             status: "success",
             oss_url: input.oss_url,
@@ -211,9 +278,8 @@ export async function handleGetResult(input) {
             detected_as: "binary",
             size_bytes: sizeBytes,
             binary: true,
-            content: `[Binary file — ${sizeBytes.toLocaleString()} bytes. ` +
-                `This is a non-text format (PDF, image, compressed archive, or proprietary binary). ` +
-                `It cannot be displayed as text. Ask the user to download it from the signed_download_url in execute_workflow output.]`,
+            content: binaryContent,
+            saved_to: savedTo,
             truncated: false,
         };
     }
@@ -240,5 +306,6 @@ export async function handleGetResult(input) {
         next_offset: hasMore ? startByte + windowByteLength : undefined,
         truncated: hasMore,
         binary: false,
+        saved_to: savedTo,
     };
 }

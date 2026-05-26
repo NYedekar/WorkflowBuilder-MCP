@@ -11,6 +11,7 @@ import { uploadFileSchema, handleUploadFile, } from "./tools/upload-file.js";
 import { getResultSchema, handleGetResult, } from "./tools/get-result.js";
 import { processFileSchema, handleProcessFile, } from "./tools/process-file.js";
 import { getWorkflowStatusSchema, handleGetWorkflowStatus, } from "./tools/get-workflow-status.js";
+import { getDownloadLinkSchema, handleGetDownloadLink, } from "./tools/get-download-link.js";
 // ─── Server setup ─────────────────────────────────────────────────────────
 const server = new Server({
     name: "mcp-workflow-builder",
@@ -51,7 +52,12 @@ const server = new Server({
         "── RULES ────────────────────────────────────────────────────────────────\n\n" +
         "NETWORK: bash cannot reach Autodesk, S3, or localhost (blocked by Claude Desktop proxy). The MCP server (Mac process) handles all network calls. ALWAYS use get_result to read output files — never curl/wget.\n" +
         "PIPELINES: always render the ASCII diagram from create_workflow verbatim in a fenced code block.\n" +
-        "PURE INFO (no file, no operation): answer directly — do not call any tool.",
+        "PURE INFO (no file, no operation): answer directly — do not call any tool.\n\n" +
+        "── FILE DOWNLOAD ────────────────────────────────────────────────────────\n\n" +
+        "After any successful operation that produces an output file, call get_download_link(oss_url=...) " +
+        "and render the returned markdown_link directly in your response so the user can click to download. " +
+        "Always pass a clean filename via the filename param (e.g. 'drawing.pdf', not the full OSS key). " +
+        "Links expire in ~1 hour — note this to the user.",
 });
 // ─── Tool list ────────────────────────────────────────────────────────────
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -120,7 +126,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     "Content-type detection uses byte-level content sniffing so JSON/CSV outputs stored as application/octet-stream are returned as text, not flagged as binary. " +
                     "The detected_as field tells you the actual format: json | csv | xml | text | binary. " +
                     "LARGE FILES: max_chars is capped at 50 000 per call. When has_more=true, call again with offset_chars=next_offset to fetch the next chunk. " +
-                    "Repeat until has_more=false. total_chars tells you the full file size upfront.",
+                    "Repeat until has_more=false. total_chars tells you the full file size upfront. " +
+                    "SAVING FILES: pass save_to with a local folder path to download and save the full file to disk. " +
+                    "If the user says 'download', 'save', or 'export the file' without specifying a folder, default to ~/Downloads. " +
+                    "The saved_to field in the response contains the resolved path. " +
+                    "For binary outputs (PDF, DWG, RVT, ZIP, images), save_to is the recommended way to retrieve them — binary content cannot be displayed as text. " +
+                    "APS DA often stores PDF outputs with a .json object key — use save_filename to give the saved file the correct name and extension (e.g. save_filename='drawing.pdf').",
                 inputSchema: zodToJsonSchema(getResultSchema),
             },
             {
@@ -149,6 +160,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     "• failed / cancelled → show error + reportUrl to user. " +
                     "Generic — handles DA WorkItems today, extensible to Model Derivative, ACC jobs, and other async APS operations.",
                 inputSchema: zodToJsonSchema(getWorkflowStatusSchema),
+            },
+            {
+                name: "get_download_link",
+                description: "Generate a clickable HTTPS download link for any file in APS OSS. " +
+                    "Call this after process_file, execute_workflow, or get_result completes to give the user a one-click download button. " +
+                    "Returns markdown_link — render it directly in your response (e.g. '[⬇ Download drawing.pdf](https://...)') so the user can click it. " +
+                    "Pass filename to give the link a clean display name instead of the raw OSS object key. " +
+                    "The signed URL is valid for ~1 hour. " +
+                    "WHEN TO CALL: automatically after every successful operation that produces a file output — do not wait for the user to ask.",
+                inputSchema: zodToJsonSchema(getDownloadLinkSchema),
             },
         ],
     };
@@ -246,6 +267,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 return {
                     content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
                     isError: result.status === "failed" || result.status === "cancelled",
+                };
+            }
+            case "get_download_link": {
+                const parsed = getDownloadLinkSchema.parse(args);
+                const result = await handleGetDownloadLink(parsed);
+                return {
+                    content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+                    isError: result.status === "error",
                 };
             }
             default:
