@@ -4,7 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import { resolveCredential, DEFAULT_SCOPES } from "../auth/credential-resolver.js";
 import { findCapabilityById, findOperationByGlobalId } from "../lib/registry-client.js";
-import { getActivity, getNickname, ensureBucket, uploadJsonToOss, submitWorkItem, pollWorkItem, getSignedDownloadUrl, getSignedS3UploadUrl, finalizeS3Upload, DAError, } from "../lib/da-client.js";
+import { getActivity, getNickname, ensureBucket, uploadJsonToOss, submitWorkItem, pollWorkItem, getSignedDownloadUrl, getSignedS3UploadUrl, uploadToS3, finalizeS3Upload, DAError, } from "../lib/da-client.js";
 // getSignedDownloadUrl is used for oss:// → signed HTTPS input URL conversion (DA WorkItem inputs)
 // ── Schema ────────────────────────────────────────────────────────────────
 export const executeWorkflowSchema = z.object({
@@ -139,6 +139,53 @@ export async function handleExecuteWorkflow(input) {
     else {
         return executeRest(cap, op, input, t0);
     }
+}
+// ── Large REST response → OSS storage ────────────────────────────────────
+// Uploads the raw JSON string to APS OSS and returns the oss:// URL.
+// Returns null on any failure so the caller can fall back gracefully.
+const OSS_UPLOAD_SCOPES = [
+    "data:read", "data:write", "data:create",
+    "bucket:create", "bucket:read", "bucket:update",
+];
+async function storeResponseInOss(responseJson, opSlug) {
+    let cred;
+    try {
+        cred = await resolveCredential(OSS_UPLOAD_SCOPES);
+    }
+    catch {
+        return null;
+    }
+    const rawKey = `${cred.client_id}-wf-outputs`;
+    const bucketKey = rawKey.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "").slice(0, 128).padEnd(3, "0");
+    const objectKey = `rest-${opSlug}-${Date.now()}.json`;
+    try {
+        await ensureBucket(cred.access_token, bucketKey, "transient");
+    }
+    catch {
+        return null;
+    }
+    let signedUpload;
+    try {
+        signedUpload = await getSignedS3UploadUrl(cred.access_token, bucketKey, objectKey, 60);
+    }
+    catch {
+        return null;
+    }
+    if (!signedUpload.urls?.length)
+        return null;
+    try {
+        await uploadToS3(signedUpload.urls[0], Buffer.from(responseJson, "utf-8"), "application/json");
+    }
+    catch {
+        return null;
+    }
+    try {
+        await finalizeS3Upload(cred.access_token, bucketKey, objectKey, signedUpload.uploadKey);
+    }
+    catch {
+        return null;
+    }
+    return `oss://${bucketKey}/${objectKey}`;
 }
 // ── REST execution ────────────────────────────────────────────────────────
 async function executeRest(cap, op, input, t0) {
@@ -292,30 +339,39 @@ async function executeRest(cap, op, input, t0) {
             hint: httpHint(res.status),
         };
     }
-    // Guard against tool-result-too-large: auto-save responses >800KB to disk.
-    // APS property/metadata dumps can be 1–5MB raw — returning inline blows the 1MB MCP limit.
+    // Guard against tool-result-too-large: APS property/metadata dumps can be 1–5MB raw.
+    // Primary path: upload to OSS → return oss_url (consistent with Engine-API output pattern).
+    // Fallback: save to ~/Downloads if OSS upload fails.
     const INLINE_LIMIT = 800_000;
     const responseJson = typeof responseBody === "string" ? responseBody : JSON.stringify(responseBody);
     const responseSize = Buffer.byteLength(responseJson, "utf-8");
+    let responseOssUrl;
     let savedResponseTo;
     let effectiveResponseBody = responseBody;
     if (responseSize > INLINE_LIMIT) {
-        const timestamp = Date.now();
         const opSlug = op.operationId.replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 40);
-        const filename = `aps-${opSlug}-${timestamp}.json`;
-        savedResponseTo = path.join(os.homedir(), "Downloads", filename);
-        try {
-            fs.writeFileSync(savedResponseTo, responseJson, "utf-8");
+        const sizeKb = (responseSize / 1024).toFixed(0);
+        responseOssUrl = await storeResponseInOss(responseJson, opSlug) ?? undefined;
+        if (responseOssUrl) {
             effectiveResponseBody =
-                `[Response too large to return inline — ${(responseSize / 1024).toFixed(0)} KB. ` +
-                    `Full JSON saved to: ${savedResponseTo}. ` +
-                    `For property data, prefer query_specific_properties with category filters to get targeted chunks.]`;
+                `[Response too large to return inline — ${sizeKb} KB stored in APS OSS. ` +
+                    `Call get_download_link(oss_url="${responseOssUrl}") to get a clickable download link, ` +
+                    `or get_result(oss_url="${responseOssUrl}", save_to="~/Downloads") to save to disk.]`;
         }
-        catch {
-            // If save fails, fall back to a truncated inline preview
-            effectiveResponseBody =
-                `[Response truncated — ${(responseSize / 1024).toFixed(0)} KB total, too large to return inline. ` +
-                    `Preview: ${responseJson.slice(0, 5_000)}...]`;
+        else {
+            // OSS upload failed — fall back to local disk
+            const filename = `aps-${opSlug}-${Date.now()}.json`;
+            savedResponseTo = path.join(os.homedir(), "Downloads", filename);
+            try {
+                fs.writeFileSync(savedResponseTo, responseJson, "utf-8");
+                effectiveResponseBody =
+                    `[Response too large to return inline — ${sizeKb} KB. Saved to: ${savedResponseTo}.]`;
+            }
+            catch {
+                effectiveResponseBody =
+                    `[Response truncated — ${sizeKb} KB total, too large to return inline. ` +
+                        `Preview: ${responseJson.slice(0, 5_000)}...]`;
+            }
         }
     }
     const result = {
@@ -325,6 +381,7 @@ async function executeRest(cap, op, input, t0) {
         capability: capSummary(cap),
         operation: opSummary(op),
         response: effectiveResponseBody,
+        ...(responseOssUrl ? { response_oss_url: responseOssUrl, response_size_bytes: responseSize } : {}),
         ...(savedResponseTo ? { response_saved_to: savedResponseTo, response_size_bytes: responseSize } : {}),
         durationMs,
         ...(manualUrnOverrideWarning ? { hint: manualUrnOverrideWarning } : {}),

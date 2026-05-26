@@ -122,7 +122,10 @@ const server = new Server(
       "After any successful operation that produces an output file, call get_download_link(oss_url=...) " +
       "and render the returned markdown_link directly in your response so the user can click to download. " +
       "Always pass a clean filename via the filename param (e.g. 'drawing.pdf', not the full OSS key). " +
-      "Links expire in ~1 hour — note this to the user.\n\n" +
+      "Links expire in ~1 hour — note this to the user.\n" +
+      "When execute_workflow returns response_oss_url (large REST response stored in OSS), " +
+      "immediately call get_download_link(oss_url=response_oss_url, filename='<op>-response.json') " +
+      "and render the link — do NOT attempt to read, parse, or summarise the stored JSON.\n\n" +
 
       "── SAVING DATA TO MAC ───────────────────────────────────────────────────\n\n" +
       "CRITICAL: Claude's bash environment is sandboxed — it CANNOT write files to the Mac filesystem. " +
