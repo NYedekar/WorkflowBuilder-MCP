@@ -44,6 +44,13 @@ const server = new Server({
         "Step 2 — authenticate_aps() — ALWAYS before any upload or execution.\n" +
         "         • error → stop. Show error. Ask user to check APS credentials.\n" +
         "Step 3 — Execute using the tool selected above (process_file or create_workflow + execute_workflow).\n\n" +
+        "── CALLABLE: FALSE — MANDATORY FALLBACK PROTOCOL ───────────────────────\n\n" +
+        "If get_capability returns a result where callable=false or callable is not true, you MUST:\n" +
+        "  1. Call get_capability AGAIN with a rephrased or broader query (e.g. swap synonyms, drop the file extension, try the intent alone).\n" +
+        "  2. Call get_capability a THIRD time with limit=10 to surface less-obvious matches.\n" +
+        "  3. Only after all three searches return no callable=true result, tell the user the operation is not yet supported and show what was searched.\n" +
+        "NEVER fall back to bash, Python, local libraries, or any non-MCP approach after seeing callable=false. " +
+        "The registry has 260+ capabilities — a better query almost always finds a callable alternative.\n\n" +
         "── STATUS HANDLING (process_file and execute_workflow) ──────────────────\n\n" +
         "• success         → present outputs. Done.\n" +
         "• pending         → WorkItem still running. Call get_workflow_status(workflow_handle). Repeat until success or failed.\n" +
@@ -100,7 +107,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     "NAS BDF FEM OP2 RCP RCS PTS E57 LAS LAZ ADSK ADSKLIB ATF ASM SMT SMB OBJ STL. " +
                     "Also call when any Autodesk cloud service is referenced (ACC, BIM 360, Autodesk Docs, Fusion Hub, Vault, APS OSS, ShotGrid, Tandem, Forma, ReCap Cloud). " +
                     "Searches 260+ capabilities across Design Automation (Engine-API) and APS REST (Platform-API). " +
-                    "Returns capability_id and operation_id for process_file. No results = Coverage Gap — do not attempt local fallback. " +
+                    "Returns capability_id and operation_id for process_file. " +
+                    "CALLABLE CHECK: always inspect the callable field on each returned operation. " +
+                    "callable=true → proceed. callable=false → DO NOT use that operation. " +
+                    "Call get_capability again with a rephrased query, then again with limit=10. " +
+                    "Only report a gap after three distinct searches all return no callable=true result. " +
+                    "No results or all callable=false = Coverage Gap — do not attempt local fallback, bash, or Python. " +
                     "Filter by query, capability_id, operation_id, or risk. Use query for natural language search.",
                 inputSchema: zodToJsonSchema(getCapabilitySchema),
             },
