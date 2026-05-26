@@ -59,8 +59,15 @@ export const executeWorkflowSchema = z.object({
         .string()
         .optional()
         .describe("OSS bucket key for Engine-API output files. " +
-        "Defaults to '{clientId}-wf-outputs' (transient, 24h TTL). " +
+        "Defaults to '{clientId}-wf-outputs'. " +
         "Ignored for REST operations."),
+    output_bucket_policy: z
+        .enum(["transient", "temporary", "persistent"])
+        .optional()
+        .default("transient")
+        .describe("Retention policy for the output bucket if it needs to be created. " +
+        "'transient' = 24h TTL (default), 'temporary' = 30-day TTL, 'persistent' = no automatic deletion. " +
+        "Has no effect if the bucket already exists. Ignored for REST operations."),
     engine_version: z
         .string()
         .optional()
@@ -332,7 +339,7 @@ async function executeEngineApi(cap, op, input, t0) {
         .slice(0, 128)
         .padEnd(3, "0");
     try {
-        await ensureBucket(cred.access_token, safeBucketKey);
+        await ensureBucket(cred.access_token, safeBucketKey, input.output_bucket_policy);
     }
     catch (err) {
         return { status: "error", error: `Could not ensure output bucket: ${String(err)}` };

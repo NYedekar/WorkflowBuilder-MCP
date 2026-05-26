@@ -25,8 +25,7 @@ export async function getActivity(token, qualifiedActivityId // e.g. "clientId.A
     return res.json();
 }
 // ── OSS bucket ────────────────────────────────────────────────────────────
-export async function ensureBucket(token, bucketKey) {
-    // Check if bucket exists
+export async function ensureBucket(token, bucketKey, policy = "transient") {
     const check = await fetch(`${OSS_BASE}/buckets/${bucketKey}/details`, {
         headers: { Authorization: `Bearer ${token}` },
     });
@@ -36,17 +35,13 @@ export async function ensureBucket(token, bucketKey) {
         const body = await check.text();
         throw new DAError(`Bucket check failed: ${body}`, check.status);
     }
-    // Create it
     const create = await fetch(`${OSS_BASE}/buckets`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-            bucketKey,
-            policyKey: "transient", // auto-deleted after 24h
-        }),
+        body: JSON.stringify({ bucketKey, policyKey: policy }),
     });
     if (!create.ok) {
         const body = await create.text();

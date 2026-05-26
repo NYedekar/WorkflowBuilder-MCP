@@ -13,6 +13,7 @@ import {
 import {
   exportWorkflowSchema,
   handleExportWorkflow,
+  type ExportWorkflowResult,
 } from "./tools/export-workflow.js";
 import {
   authenticateApsSchema,
@@ -225,11 +226,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (result.status === "bridge_required") {
           return {
             content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+            isError: true,
           };
         }
         if (result.status === "error") {
           return {
             content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+            isError: true,
           };
         }
         const parts: { type: "text"; text: string }[] = [
@@ -246,9 +249,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case "export_workflow": {
         const parsed = exportWorkflowSchema.parse(args);
-        const result = await handleExportWorkflow(parsed);
+        const result: ExportWorkflowResult = await handleExportWorkflow(parsed);
         return {
-          content: [{ type: "text" as const, text: result }],
+          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          isError: result.status === "error",
         };
       }
       case "authenticate_aps": {
@@ -256,6 +260,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = await handleAuthenticateAps(parsed);
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          isError: result.status === "error",
         };
       }
       case "upload_file": {
@@ -263,6 +268,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = await handleUploadFile(parsed);
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          isError: result.status === "error",
         };
       }
       case "get_capability": {
@@ -277,6 +283,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = await handleExecuteWorkflow(parsed);
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          isError: result.status === "error" || result.status === "failed" || result.status === "activity_not_found",
         };
       }
       case "get_result": {
@@ -284,6 +291,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = await handleGetResult(parsed);
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          isError: result.status === "error",
         };
       }
       case "process_file": {
@@ -291,6 +299,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = await handleProcessFile(parsed);
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          isError: result.status === "error" || result.status === "failed",
         };
       }
       case "get_workflow_status": {
@@ -298,6 +307,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const result = await handleGetWorkflowStatus(parsed);
         return {
           content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+          isError: result.status === "failed" || result.status === "cancelled",
         };
       }
       default:

@@ -75,20 +75,35 @@ export async function handleProcessFile(input) {
     if (!capabilityId || !operationId) {
         const filename = basename(input.file_path);
         const ext = extname(filename).toLowerCase().slice(1);
-        const query = [ext, input.intent].filter(Boolean).join(" ");
-        const caps = searchCapabilities({ query, limit: 1 });
-        if (caps.length === 0) {
-            return {
-                status: "no_capability_found",
-                gap_note: `⚠️ WorkflowSkills gap — searched: "${query}" | ` +
-                    `No capability found for .${ext} files. ` +
-                    `Use get_capability with a different query, or specify capability_id + operation_id directly.`,
-            };
-        }
-        if (!capabilityId)
+        if (!capabilityId) {
+            // Neither capability nor operation supplied — search by extension + intent
+            const query = [ext, input.intent].filter(Boolean).join(" ");
+            const caps = searchCapabilities({ query, limit: 1 });
+            if (caps.length === 0) {
+                return {
+                    status: "no_capability_found",
+                    gap_note: `⚠️ WorkflowSkills gap — searched: "${query}" | ` +
+                        `No capability found for .${ext} files. ` +
+                        `Use get_capability with a different query, or specify capability_id + operation_id directly.`,
+                };
+            }
             capabilityId = caps[0].id;
-        if (!operationId) {
-            const op = caps[0].operations.find((o) => o.callable !== false);
+            if (!operationId) {
+                const op = caps[0].operations.find((o) => o.callable !== false);
+                if (op)
+                    operationId = op.operationId;
+            }
+        }
+        else {
+            // capability_id supplied but operation_id missing — resolve from that specific capability
+            const cap = findCapabilityById(capabilityId);
+            if (!cap) {
+                return {
+                    status: "error",
+                    error: `Capability '${capabilityId}' not found in registry. Use get_capability to verify the id.`,
+                };
+            }
+            const op = cap.operations.find((o) => o.callable !== false);
             if (op)
                 operationId = op.operationId;
         }
@@ -116,11 +131,12 @@ export async function handleProcessFile(input) {
         capability_id: capabilityId,
         operation_id: operationId,
         input_file_url: ossUrl,
-        poll_timeout_ms: input.poll_timeout_ms,
+        poll_timeout_ms: Math.min(input.poll_timeout_ms, 55_000),
         path_params: {},
         query_params: {},
         body: effectiveBody,
         config: {},
+        output_bucket_policy: "transient",
     });
     if (execResult.status === "pending") {
         return {

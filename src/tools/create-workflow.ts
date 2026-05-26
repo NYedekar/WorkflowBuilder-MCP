@@ -101,8 +101,18 @@ export async function handleCreateWorkflow(
 
   const description = input.description ?? "";
 
-  const dag = buildDAG(input.intents, input.relationships, name, description);
-  const rendered = renderDagAscii(dag);
+  let dag: WorkflowDAG;
+  let rendered: string;
+  try {
+    dag = buildDAG(input.intents, input.relationships, name, description);
+    rendered = renderDagAscii(dag);
+  } catch (err) {
+    return {
+      status: "error",
+      error: err instanceof Error ? err.message : String(err),
+      hint: "Check that loop nodes have at least one 'loop' edge, 'after_loop' edges only come from loop nodes, and there are no cycles.",
+    };
+  }
 
   return { status: "success", rendered, dag, oss_url };
 }

@@ -56,8 +56,11 @@ export async function getActivity(
 
 // ── OSS bucket ────────────────────────────────────────────────────────────
 
-export async function ensureBucket(token: string, bucketKey: string): Promise<void> {
-  // Check if bucket exists
+export async function ensureBucket(
+  token: string,
+  bucketKey: string,
+  policy: "transient" | "temporary" | "persistent" = "transient"
+): Promise<void> {
   const check = await fetch(`${OSS_BASE}/buckets/${bucketKey}/details`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -66,17 +69,13 @@ export async function ensureBucket(token: string, bucketKey: string): Promise<vo
     const body = await check.text();
     throw new DAError(`Bucket check failed: ${body}`, check.status);
   }
-  // Create it
   const create = await fetch(`${OSS_BASE}/buckets`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      bucketKey,
-      policyKey: "transient", // auto-deleted after 24h
-    }),
+    body: JSON.stringify({ bucketKey, policyKey: policy }),
   });
   if (!create.ok) {
     const body = await create.text();

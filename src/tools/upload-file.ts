@@ -138,6 +138,14 @@ export async function handleUploadFile(input: UploadFileInput): Promise<UploadFi
   if (!stat.isFile()) {
     return { status: "error", error: `Path is not a file: '${resolvedPath}'` };
   }
+  const MAX_UPLOAD_BYTES = 500 * 1024 * 1024; // 500 MB
+  if (stat.size > MAX_UPLOAD_BYTES) {
+    return {
+      status: "error",
+      error: `File too large: ${(stat.size / 1024 / 1024).toFixed(0)} MB. Maximum supported upload size is 500 MB.`,
+      hint: "Split the file or use the APS Data Management API multipart upload for files over 500 MB.",
+    };
+  }
   try {
     fileBuffer = readFileSync(resolvedPath);
   } catch (err) {

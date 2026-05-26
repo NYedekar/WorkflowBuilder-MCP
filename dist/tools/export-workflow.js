@@ -1,7 +1,8 @@
 import { writeFileSync } from "fs";
+import { resolve } from "path";
+import { homedir } from "os";
 import { z } from "zod";
 import yaml from "js-yaml";
-// Zod schema for WorkflowDAG input (accepting a full WorkflowDAG object or its JSON string)
 export const exportWorkflowSchema = z.object({
     workflow: z
         .union([z.string(), z.record(z.unknown())])
@@ -12,7 +13,8 @@ export const exportWorkflowSchema = z.object({
     output_path: z
         .string()
         .optional()
-        .describe("Optional file path to write the output to. If omitted, returns the serialized string only."),
+        .describe("Optional file path to write the output to. Must be within your home directory. " +
+        "If omitted, returns the serialized content only."),
 });
 export async function handleExportWorkflow(input) {
     // Parse workflow — accept either string or object
@@ -22,36 +24,42 @@ export async function handleExportWorkflow(input) {
             dag = JSON.parse(input.workflow);
         }
         catch (err) {
-            return JSON.stringify({ error: `Failed to parse workflow JSON string: ${String(err)}` }, null, 2);
+            return { status: "error", error: `Failed to parse workflow JSON string: ${String(err)}` };
         }
     }
     else {
         dag = input.workflow;
     }
     // Serialize
-    let serialized;
+    let content;
     if (input.format === "json") {
-        serialized = JSON.stringify(dag, null, 2);
+        content = JSON.stringify(dag, null, 2);
     }
     else {
-        // YAML via js-yaml
-        serialized = yaml.dump(dag, {
-            indent: 2,
-            lineWidth: 120,
-            noRefs: true,
-        });
+        content = yaml.dump(dag, { indent: 2, lineWidth: 120, noRefs: true });
     }
     // Write to file if path given
     if (input.output_path) {
+        const resolvedPath = resolve(input.output_path);
+        const homeDir = homedir();
+        if (!resolvedPath.startsWith(homeDir)) {
+            return {
+                status: "error",
+                error: `output_path must be within your home directory (${homeDir}). Received: '${resolvedPath}'`,
+                content,
+            };
+        }
         try {
-            writeFileSync(input.output_path, serialized, "utf8");
+            writeFileSync(resolvedPath, content, "utf8");
         }
         catch (err) {
-            return JSON.stringify({
-                error: `Failed to write file at '${input.output_path}': ${String(err)}`,
-                content: serialized,
-            }, null, 2);
+            return {
+                status: "error",
+                error: `Failed to write file at '${resolvedPath}': ${String(err)}`,
+                content,
+            };
         }
+        return { status: "success", content, file_written: resolvedPath };
     }
-    return serialized;
+    return { status: "success", content };
 }

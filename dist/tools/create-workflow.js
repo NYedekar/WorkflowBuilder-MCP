@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { buildDAG } from "../lib/dag-builder.js";
 import { renderDagAscii } from "../lib/render.js";
+import { handleUploadFile } from "./upload-file.js";
 const intentSchema = z.object({
     id: z.string().describe("Unique identifier for this intent"),
     label: z.string().describe("Short human-readable name"),
@@ -35,12 +36,57 @@ export const createWorkflowSchema = z.object({
         .describe("Relationships between intents. If omitted, the DAG will have no edges."),
     name: z.string().optional().describe("Human-readable workflow name"),
     description: z.string().optional().describe("What this workflow accomplishes"),
+    file_path: z
+        .string()
+        .optional()
+        .describe("Optional local file to upload before planning. " +
+        "When provided, the file is uploaded to APS OSS and the oss_url is returned alongside the DAG — " +
+        "pass it to each execute_workflow call so all steps share the same uploaded copy. " +
+        "Accepts local paths, ~/Downloads/, or OneDrive (e.g. ~/Library/CloudStorage/OneDrive-Autodesk/…). " +
+        "Chat attachments (/mnt/user-data/uploads/) cannot be read by the MCP server — " +
+        "on bridge_required, show REQUIRED_ACTION to the user and ask for the file's actual Mac path."),
 });
 export async function handleCreateWorkflow(input) {
+    // ── Step 1: Upload file if provided ───────────────────────────────────────
+    let oss_url;
+    if (input.file_path) {
+        const uploadResult = await handleUploadFile({
+            file_path: input.file_path,
+            bucket_policy: "transient",
+            signed_url_expiry_minutes: 60,
+        });
+        if (uploadResult.status === "bridge_required") {
+            return {
+                status: "bridge_required",
+                REQUIRED_ACTION: uploadResult.REQUIRED_ACTION,
+                mac_path_hint: uploadResult.mac_path_hint,
+            };
+        }
+        if (uploadResult.status === "error" || !uploadResult.oss_url) {
+            return {
+                status: "error",
+                error: `Upload failed: ${uploadResult.error}`,
+                hint: uploadResult.hint,
+            };
+        }
+        oss_url = uploadResult.oss_url;
+    }
+    // ── Step 2: Build and render the DAG ─────────────────────────────────────
     const name = input.name ??
         `Workflow_${new Date().toISOString().slice(0, 10)}_${Math.random().toString(36).slice(2, 7)}`;
     const description = input.description ?? "";
-    const dag = buildDAG(input.intents, input.relationships, name, description);
-    const rendered = renderDagAscii(dag);
-    return { rendered, dag };
+    let dag;
+    let rendered;
+    try {
+        dag = buildDAG(input.intents, input.relationships, name, description);
+        rendered = renderDagAscii(dag);
+    }
+    catch (err) {
+        return {
+            status: "error",
+            error: err instanceof Error ? err.message : String(err),
+            hint: "Check that loop nodes have at least one 'loop' edge, 'after_loop' edges only come from loop nodes, and there are no cycles.",
+        };
+    }
+    return { status: "success", rendered, dag, oss_url };
 }

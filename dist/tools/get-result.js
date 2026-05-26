@@ -146,10 +146,10 @@ export async function handleGetResult(input) {
         };
     }
     // ── Step 2: Fetch bytes from S3 using Range to avoid downloading the full file ─
-    // APS OSS / S3 supports Range requests. Fetch only the bytes needed for this page.
-    // UTF-8 worst case: 4 bytes per character. Add a 512-byte buffer at the start for
-    // content-type detection (magic bytes check). For offset > 0 and extension-detected
-    // types, the sniff check is skipped anyway so the buffer is a no-op.
+    // offset_chars is treated as a byte offset in the Range header. For ASCII-dominated
+    // APS outputs (JSON, CSV) byte offset == char offset. For the rare case of multi-byte
+    // UTF-8 content, next_offset is computed from the actual encoded byte length of the
+    // returned window so subsequent pages start at the correct byte boundary.
     const startByte = input.offset_chars;
     const endByte = startByte + input.max_chars * 4 + 512 - 1;
     let res;
@@ -218,15 +218,15 @@ export async function handleGetResult(input) {
         };
     }
     // ── Step 4: Decode the fetched slice as UTF-8, extract the window ────────
-    // bytes starts at startByte (= offset_chars). Decode it all, then take up to
-    // max_chars from the beginning of the decoded text.
+    // bytes starts at startByte (byte offset). Decode all fetched bytes, then take
+    // up to max_chars characters. next_offset is computed from the actual byte length
+    // of the returned window so the next Range request starts at the correct byte boundary,
+    // even for files with multi-byte UTF-8 characters.
     const raw = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
     const window = raw.slice(0, input.max_chars);
-    // total_chars: exact when totalBytes known (valid for ASCII-dominated files like
-    // Revit JSON/CSV — one byte ≈ one char). For heavily multi-byte content the number
-    // is approximate but still useful for pagination math.
+    const windowByteLength = new TextEncoder().encode(window).byteLength;
     const totalChars = totalBytes ?? sizeBytes;
-    const hasMore = startByte + window.length < totalChars;
+    const hasMore = startByte + windowByteLength < totalChars;
     return {
         status: "success",
         oss_url: input.oss_url,
@@ -237,7 +237,7 @@ export async function handleGetResult(input) {
         content: window,
         offset_chars: startByte,
         has_more: hasMore,
-        next_offset: hasMore ? startByte + window.length : undefined,
+        next_offset: hasMore ? startByte + windowByteLength : undefined,
         truncated: hasMore,
         binary: false,
     };
