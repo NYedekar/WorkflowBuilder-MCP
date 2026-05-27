@@ -103,7 +103,7 @@ export async function handleUploadFile(input: UploadFileInput): Promise<UploadFi
 
   // ── Sandbox check (before auth) ───────────────────────────────────────────
   // MCP server (Mac) cannot read /mnt/ paths; they exist only in Claude's sandbox.
-  if (isSandboxPath(resolvedPath) || !existsSync(resolvedPath)) {
+  if (isSandboxPath(resolvedPath)) {
     const macPath = `~/Downloads/${filename}`;
     return {
       status: "bridge_required",
@@ -112,6 +112,16 @@ export async function handleUploadFile(input: UploadFileInput): Promise<UploadFi
         `File '${filename}' is a chat attachment — the MCP server cannot read it directly. ` +
         `Please provide the file's actual path on your Mac (e.g. ~/Downloads/${filename}, a OneDrive path, or any local folder), ` +
         `then call upload_file again with that path.`,
+    };
+  }
+
+  // ── File existence check ──────────────────────────────────────────────────
+  if (!existsSync(resolvedPath)) {
+    return {
+      status: "error",
+      error: `File not found: '${resolvedPath}'`,
+      hint: `Check the path is correct and the file exists on this Mac. ` +
+        `If the file was attached to the chat rather than saved locally, save it to ~/Downloads/ first.`,
     };
   }
 
