@@ -14,7 +14,6 @@ import {
   ensureBucket,
   uploadJsonToOss,
   submitWorkItem,
-  pollWorkItem,
   getSignedDownloadUrl,
   getSignedS3UploadUrl,
   uploadToS3,
@@ -23,7 +22,6 @@ import {
   type WorkItemArgument,
   type ActivityDefinition,
 } from "../lib/da-client.js";
-// getSignedDownloadUrl is used for oss:// → signed HTTPS input URL conversion (DA WorkItem inputs)
 
 // ── Schema ────────────────────────────────────────────────────────────────
 
@@ -129,19 +127,6 @@ export const executeWorkflowSchema = z.object({
         "Keys are argument names as defined in the activity (e.g. PersonalAccessToken, TaskParameters). " +
         "Values are passed as data: URIs directly in the WorkItem body — no OSS upload needed. " +
         "Example: { \"PersonalAccessToken\": \"your-pat\", \"TaskParameters\": \"{\\\"key\\\": \\\"value\\\"}\" }."
-    ),
-  poll_timeout_ms: z
-    .number()
-    .int()
-    .min(5_000)
-    .max(55_000)
-    .optional()
-    .default(50_000)
-    .describe(
-      "Max milliseconds to poll for Engine-API WorkItem completion per call. " +
-        "Default and max: 50 000 (50s — safe under MCP transport timeout). " +
-        "If the job is still running at timeout, status='pending' is returned with a workflow_handle. " +
-        "Call get_workflow_status(workflow_handle) to continue polling. Ignored for REST operations."
     ),
 });
 
@@ -841,87 +826,16 @@ async function executeEngineApi(
     return { status: "error", error: String(err) };
   }
 
-  // ── Poll WorkItem ─────────────────────────────────────────────────────
-  // Poll for up to poll_timeout_ms (max 50s — safe under MCP transport limit).
-  // On timeout: return pending + workflow_handle so get_workflow_status can continue.
-  // On other errors: return error immediately.
-  // Only finalize S3 uploads after the job is confirmed done.
-  let finalItem;
-  let timedOut = false;
-  let pollError: string | undefined;
-  try {
-    finalItem = await pollWorkItem(cred.access_token, workItemId, input.poll_timeout_ms);
-  } catch (err) {
-    const msg = String(err);
-    if (msg.toLowerCase().includes("timed out")) {
-      timedOut = true;
-    } else {
-      pollError = msg;
-    }
-  }
-
-  const durationMs = Date.now() - t0;
-
-  // ── Job still running — return pending with full workflow_handle ──────
-  if (timedOut) {
-    return {
-      status: "pending",
-      mode: "engine_api",
-      workItemId,
-      workflow_handle: { type: "da_workitem", workItemId, outputOssUrls, s3FinalizeQueue },
-      durationMs,
-      hint: "WorkItem is still running. Call get_workflow_status(workflow_handle) to continue polling. Repeat until status is 'success' or 'failed'.",
-    };
-  }
-
-  // ── Non-timeout poll error ────────────────────────────────────────────
-  if (pollError) {
-    return {
-      status: "error",
-      mode: "engine_api",
-      workItemId,
-      error: pollError,
-    };
-  }
-
-  // ── Job done — finalize S3 uploads (register objects in OSS) ─────────
-  for (const entry of s3FinalizeQueue) {
-    try {
-      await finalizeS3Upload(cred.access_token, entry.bucketKey, entry.objectKey, entry.uploadKey);
-    } catch {
-      // Non-fatal: already finalized or object missing
-    }
-  }
-
-  if (finalItem!.status !== "success") {
-    return {
-      status: "failed",
-      mode: "engine_api",
-      workItemId,
-      reportUrl: finalItem!.reportUrl,
-      durationMs,
-      capability: capSummary(cap),
-      operation: opSummary(op),
-      error: `WorkItem finished with status '${finalItem!.status}'.`,
-      hint: `Inspect the execution report: ${finalItem!.reportUrl ?? "(no report URL)"}`,
-    };
-  }
-
-  const primaryOutputOss = outputOssUrls[0];
-
+  // ── Submit complete — return pending immediately ───────────────────────
+  // Never block the MCP transport with inline polling. S3 finalization and
+  // status checking are handled by get_workflow_status on the workflow_handle.
   return {
-    status: "success",
+    status: "pending",
     mode: "engine_api",
     workItemId,
-    capability: capSummary(cap),
-    operation: opSummary(op),
-    outputOssUrl: primaryOutputOss,
-    outputOssUrls: outputOssUrls.length > 0 ? outputOssUrls : undefined,
-    reportUrl: finalItem!.reportUrl,
-    durationMs,
-    hint: outputOssUrls.length > 1
-      ? `${outputOssUrls.length} output files. Call get_result on each outputOssUrls entry.`
-      : undefined,
+    workflow_handle: { type: "da_workitem", workItemId, outputOssUrls, s3FinalizeQueue },
+    durationMs: Date.now() - t0,
+    hint: "WorkItem submitted. Call get_workflow_status(workflow_handle) to poll for completion. Repeat until status is 'success' or 'failed'.",
   };
 }
 

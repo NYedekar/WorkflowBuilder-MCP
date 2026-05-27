@@ -29,14 +29,6 @@ export const processFileSchema = z.object({
     .string()
     .optional()
     .describe("Override auto-selection. Pass the operationId from get_capability."),
-  poll_timeout_ms: z
-    .number()
-    .int()
-    .min(5_000)
-    .max(600_000)
-    .optional()
-    .default(180_000)
-    .describe("Max ms to wait for Engine-API WorkItem. Default 3 min."),
   max_result_chars: z
     .number()
     .int()
@@ -70,7 +62,7 @@ export interface ProcessFileOutput {
   // bridge_required — file is a chat attachment; MCP server cannot read it
   REQUIRED_ACTION?: string;
   mac_path_hint?: string;
-  // pending — DA WorkItem submitted but not done within 50s poll window
+  // pending — DA WorkItem submitted; poll with get_workflow_status(workflow_handle)
   workflow_handle?: import("./execute-workflow.js").WorkflowHandle;
   // no_capability_found
   gap_note?: string;
@@ -191,7 +183,6 @@ export async function handleProcessFile(input: ProcessFileInput): Promise<Proces
     capability_id: capabilityId,
     operation_id: operationId,
     input_file_url: ossUrl,
-    poll_timeout_ms: Math.min(input.poll_timeout_ms, 55_000),
     path_params: {},
     query_params: {},
     body: effectiveBody,
@@ -208,7 +199,7 @@ export async function handleProcessFile(input: ProcessFileInput): Promise<Proces
       input_oss_url: ossUrl,
       workItemId: execResult.workItemId,
       workflow_handle: execResult.workflow_handle,
-      hint: "WorkItem is still running. Call get_workflow_status(workflow_handle) to continue polling. When status='success', call get_result on each outputOssUrls entry.",
+      hint: "WorkItem submitted. Call get_workflow_status(workflow_handle) to poll. Repeat until status='success', then call get_result on each outputOssUrls entry.",
     };
   }
 

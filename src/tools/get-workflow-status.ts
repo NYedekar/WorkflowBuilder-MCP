@@ -30,9 +30,9 @@ export const getWorkflowStatusSchema = z.object({
     .min(5_000)
     .max(55_000)
     .optional()
-    .default(50_000)
+    .default(15_000)
     .describe(
-      "Max ms to poll in this call. Default 50 000 (safe under 60s MCP transport limit). " +
+      "Max ms to poll in this call. Default 15 000 (keeps each call well under MCP transport timeout). " +
         "If the job is still running at timeout, status='pending' is returned — call again with the same workflow_handle."
     ),
 });

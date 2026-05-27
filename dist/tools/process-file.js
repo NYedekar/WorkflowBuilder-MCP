@@ -23,14 +23,6 @@ export const processFileSchema = z.object({
         .string()
         .optional()
         .describe("Override auto-selection. Pass the operationId from get_capability."),
-    poll_timeout_ms: z
-        .number()
-        .int()
-        .min(5_000)
-        .max(600_000)
-        .optional()
-        .default(180_000)
-        .describe("Max ms to wait for Engine-API WorkItem. Default 3 min."),
     max_result_chars: z
         .number()
         .int()
@@ -131,7 +123,6 @@ export async function handleProcessFile(input) {
         capability_id: capabilityId,
         operation_id: operationId,
         input_file_url: ossUrl,
-        poll_timeout_ms: Math.min(input.poll_timeout_ms, 55_000),
         path_params: {},
         query_params: {},
         body: effectiveBody,
@@ -147,7 +138,7 @@ export async function handleProcessFile(input) {
             input_oss_url: ossUrl,
             workItemId: execResult.workItemId,
             workflow_handle: execResult.workflow_handle,
-            hint: "WorkItem is still running. Call get_workflow_status(workflow_handle) to continue polling. When status='success', call get_result on each outputOssUrls entry.",
+            hint: "WorkItem submitted. Call get_workflow_status(workflow_handle) to poll. Repeat until status='success', then call get_result on each outputOssUrls entry.",
         };
     }
     if (execResult.status !== "success") {
