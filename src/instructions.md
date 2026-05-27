@@ -107,8 +107,8 @@ WHAT MD COVERS vs GAPS PER PRODUCT:
 ── STATUS HANDLING (process_file and execute_workflow) ──────────────────
 
 • success         → present outputs. Done. (REST operations only — Engine-API always returns pending first.)
-• pending         → Engine-API WorkItem submitted. ALWAYS call get_workflow_status(workflow_handle) next.
-                    Repeat get_workflow_status until status='success' or 'failed' — each call polls for ~15s.
-                    When success: call get_result on each outputOssUrls entry.
+• pending         → Job still running. Call get_workflow_status(workflow_handle) again. Each call polls ~15s.
+                    STOP calling get_workflow_status the moment status is NOT 'pending'.
+                    Always read the next_action field — it tells you exactly what to do next.
 • failed          → WorkItem failed. Check reportUrl for the DA execution log.
 • bridge_required → show REQUIRED_ACTION verbatim. Ask for the file's actual Mac path (~/Downloads/, OneDrive, or local folder). Retry with that path.

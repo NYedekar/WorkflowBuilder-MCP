@@ -41,7 +41,8 @@ export type GetWorkflowStatusInput = z.infer<typeof getWorkflowStatusSchema>;
 
 export interface GetWorkflowStatusOutput {
   status: "pending" | "running" | "success" | "failed" | "cancelled" | "error";
-  workflow_handle?: WorkflowHandle; // present when status === "pending" or "running"
+  next_action?: string; // explicit instruction for what to call next
+  workflow_handle?: WorkflowHandle; // present ONLY when status === "pending" — absence means job is done
   workItemId?: string;
   outputOssUrls?: string[];
   reportUrl?: string;
@@ -122,10 +123,11 @@ async function pollDaWorkItem(
   if (timedOut) {
     return {
       status: "pending",
+      next_action: "CALL get_workflow_status AGAIN with the same workflow_handle. Do NOT call get_result yet.",
       workflow_handle: handle,
       workItemId: handle.workItemId,
       durationMs,
-      hint: "WorkItem is still running. Call get_workflow_status again with the same workflow_handle.",
+      hint: "WorkItem is still running.",
     };
   }
 
@@ -151,21 +153,23 @@ async function pollDaWorkItem(
   const daStatus = finalItem!.status;
 
   if (daStatus === "success") {
+    const outputCount = handle.outputOssUrls.length;
     return {
       status: "success",
+      next_action: outputCount > 0
+        ? `STOP POLLING. Call get_result on each of the ${outputCount} outputOssUrls to retrieve the output files.`
+        : "STOP POLLING. Job completed with no output files.",
       workItemId: handle.workItemId,
       outputOssUrls: handle.outputOssUrls,
       reportUrl: finalItem!.reportUrl,
       durationMs,
-      hint: handle.outputOssUrls.length > 1
-        ? `${handle.outputOssUrls.length} output files. Call get_result on each outputOssUrls entry.`
-        : "Call get_result with outputOssUrls[0] to read the output.",
     };
   }
 
   if (daStatus === "cancelled") {
     return {
       status: "cancelled",
+      next_action: "STOP POLLING. Job was cancelled. Do not call get_result.",
       workItemId: handle.workItemId,
       reportUrl: finalItem!.reportUrl,
       durationMs,
@@ -175,10 +179,10 @@ async function pollDaWorkItem(
 
   return {
     status: "failed",
+    next_action: "STOP POLLING. Job failed. Check the reportUrl for the execution log.",
     workItemId: handle.workItemId,
     reportUrl: finalItem!.reportUrl,
     durationMs,
     error: `WorkItem finished with status '${daStatus}'.`,
-    hint: `Inspect the execution report: ${finalItem!.reportUrl ?? "(no report URL)"}`,
   };
 }
