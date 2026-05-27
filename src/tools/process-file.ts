@@ -59,6 +59,7 @@ export type ProcessFileInput = z.infer<typeof processFileSchema>;
 
 export interface ProcessFileOutput {
   status: "success" | "pending" | "bridge_required" | "no_capability_found" | "failed" | "error";
+  next_action?: string; // explicit instruction for what to call next
   // bridge_required — file is a chat attachment; MCP server cannot read it
   REQUIRED_ACTION?: string;
   mac_path_hint?: string;
@@ -194,12 +195,12 @@ export async function handleProcessFile(input: ProcessFileInput): Promise<Proces
   if (execResult.status === "pending") {
     return {
       status: "pending",
+      next_action: "CALL get_workflow_status(workflow_handle) NOW. Do not wait or ask the user. Repeat until next_action says STOP POLLING.",
       capability_used: capabilityId,
       operation_used: operationId,
       input_oss_url: ossUrl,
       workItemId: execResult.workItemId,
       workflow_handle: execResult.workflow_handle,
-      hint: "WorkItem submitted. Call get_workflow_status(workflow_handle) to poll. Repeat until status='success', then call get_result on each outputOssUrls entry.",
     };
   }
 

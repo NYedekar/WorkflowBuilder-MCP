@@ -133,12 +133,12 @@ export async function handleProcessFile(input) {
     if (execResult.status === "pending") {
         return {
             status: "pending",
+            next_action: "CALL get_workflow_status(workflow_handle) NOW. Do not wait or ask the user. Repeat until next_action says STOP POLLING.",
             capability_used: capabilityId,
             operation_used: operationId,
             input_oss_url: ossUrl,
             workItemId: execResult.workItemId,
             workflow_handle: execResult.workflow_handle,
-            hint: "WorkItem submitted. Call get_workflow_status(workflow_handle) to poll. Repeat until status='success', then call get_result on each outputOssUrls entry.",
         };
     }
     if (execResult.status !== "success") {

@@ -277,11 +277,35 @@ export async function handleGetResult(input) {
             detected = "text";
     }
     if (detected === "binary") {
+        // Auto-save binary files to ~/Downloads when no save_to was provided.
+        // Returning raw binary bytes as text produces garbled output — always save instead.
+        if (!savedTo) {
+            const autoFilename = input.save_filename ?? (objectKey.split("/").pop() ?? objectKey);
+            try {
+                // Re-fetch the full file for saving (the range fetch above was only a preview slice)
+                const fullController = new AbortController();
+                const fullTimer = setTimeout(() => fullController.abort(), 120_000);
+                let fullRes;
+                try {
+                    fullRes = await fetch(signedUrl, { signal: fullController.signal });
+                }
+                finally {
+                    clearTimeout(fullTimer);
+                }
+                if (fullRes.ok) {
+                    const fullBytes = new Uint8Array(await fullRes.arrayBuffer());
+                    savedTo = resolveSavePath(os.homedir() + "/Downloads", autoFilename);
+                    fs.writeFileSync(savedTo, fullBytes);
+                }
+            }
+            catch {
+                // Auto-save failed — fall through to the hint message
+            }
+        }
         const binaryContent = savedTo
-            ? `[Binary file — ${sizeBytes.toLocaleString()} bytes. Saved to: ${savedTo}]`
+            ? `[Binary file — ${sizeBytes.toLocaleString()} bytes. Auto-saved to: ${savedTo}]`
             : `[Binary file — ${sizeBytes.toLocaleString()} bytes. ` +
-                `This is a non-text format (PDF, image, compressed archive, or proprietary binary). ` +
-                `It cannot be displayed as text. Pass save_to with a local folder path to download it.]`;
+                `Could not auto-save. Pass save_to="~/Downloads" to download it.]`;
         return {
             status: "success",
             oss_url: input.oss_url,
