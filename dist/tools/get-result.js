@@ -172,20 +172,19 @@ export async function handleGetResult(input) {
             error: `Could not get download URL: ${String(err)}`,
         };
     }
-    // ── Step 2a: Full download + save (when save_to is provided) ─────────────
-    // Fetch the entire file without a Range header, write it to disk, then
-    // continue to the content-detection + preview path below.
-    let savedTo;
+    // ── save_to path: one S3 fetch does everything ───────────────────────────
+    // Full fetch → save to disk → detect from in-memory bytes → return.
+    // No range fetch needed — avoids the previous 2-fetch pattern.
     if (input.save_to) {
         const filename = input.save_filename ?? (objectKey.split("/").pop() ?? objectKey);
-        let saveRes;
         const saveController = new AbortController();
         const saveTimer = setTimeout(() => saveController.abort(), 120_000);
+        let saveRes;
         try {
             saveRes = await fetch(signedUrl, { signal: saveController.signal });
         }
         catch (err) {
-            return { status: "error", error: `Network error downloading full file: ${String(err)}` };
+            return { status: "error", error: `Network error downloading file: ${String(err)}` };
         }
         finally {
             clearTimeout(saveTimer);
@@ -195,11 +194,18 @@ export async function handleGetResult(input) {
             return {
                 status: "error",
                 oss_url: input.oss_url,
-                error: `S3 full download failed (HTTP ${saveRes.status}): ${body.slice(0, 500)}`,
+                error: `S3 download failed (HTTP ${saveRes.status}): ${body.slice(0, 500)}`,
             };
         }
+        let fullBytes;
         try {
-            const fullBytes = new Uint8Array(await saveRes.arrayBuffer());
+            fullBytes = new Uint8Array(await saveRes.arrayBuffer());
+        }
+        catch (err) {
+            return { status: "error", oss_url: input.oss_url, error: `Failed to read response body: ${String(err)}` };
+        }
+        let savedTo;
+        try {
             savedTo = resolveSavePath(input.save_to, filename);
             fs.writeFileSync(savedTo, fullBytes);
         }
@@ -211,12 +217,56 @@ export async function handleGetResult(input) {
                 hint: `Check that the folder path '${input.save_to}' is writable.`,
             };
         }
+        // Detect from the already-fetched bytes — no second S3 call needed.
+        let detected = detectContent(fullBytes.slice(0, 512), objectKey);
+        if (input.force_text && detected === "binary") {
+            const head = String.fromCharCode(...fullBytes.slice(0, 3));
+            const sampleStr = new TextDecoder("utf-8", { fatal: false }).decode(fullBytes.slice(0, 512));
+            if (head.trimStart().startsWith("{") || head.trimStart().startsWith("["))
+                detected = "json";
+            else if (head.trimStart().startsWith("<"))
+                detected = "xml";
+            else if ((sampleStr.includes(",") || sampleStr.includes("\t")) && sampleStr.includes("\n"))
+                detected = "csv";
+            else
+                detected = "text";
+        }
+        if (detected === "binary") {
+            return {
+                status: "success",
+                oss_url: input.oss_url,
+                content_type: "application/octet-stream",
+                detected_as: "binary",
+                size_bytes: fullBytes.byteLength,
+                binary: true,
+                content: `[Binary file — ${fullBytes.byteLength.toLocaleString()} bytes. Saved to: ${savedTo}]`,
+                saved_to: savedTo,
+                truncated: false,
+            };
+        }
+        // Text: extract content window directly from in-memory bytes.
+        const raw = new TextDecoder("utf-8", { fatal: false }).decode(fullBytes);
+        const windowText = raw.slice(input.offset_chars, input.offset_chars + input.max_chars);
+        const hasMoreText = input.offset_chars + windowText.length < raw.length;
+        return {
+            status: "success",
+            oss_url: input.oss_url,
+            content_type: "application/octet-stream",
+            detected_as: detected,
+            size_bytes: fullBytes.byteLength,
+            total_chars: raw.length,
+            content: windowText,
+            offset_chars: input.offset_chars,
+            has_more: hasMoreText,
+            next_offset: hasMoreText ? input.offset_chars + new TextEncoder().encode(windowText).byteLength : undefined,
+            truncated: hasMoreText,
+            binary: false,
+            saved_to: savedTo,
+        };
     }
-    // ── Step 2b: Range fetch for content preview ──────────────────────────────
-    // offset_chars is treated as a byte offset in the Range header. For ASCII-dominated
-    // APS outputs (JSON, CSV) byte offset == char offset. For the rare case of multi-byte
-    // UTF-8 content, next_offset is computed from the actual encoded byte length of the
-    // returned window so subsequent pages start at the correct byte boundary.
+    // ── No save_to: range fetch for detection + text content ──────────────────
+    // Requests enough bytes for both binary detection (512 B) and a full text window
+    // (max_chars chars × 4 bytes/char worst-case for UTF-8).
     const startByte = input.offset_chars;
     const endByte = startByte + input.max_chars * 4 + 512 - 1;
     let res;
@@ -234,7 +284,7 @@ export async function handleGetResult(input) {
     finally {
         clearTimeout(rangeTimer);
     }
-    // S3 returns 206 for partial content, 200 if the file is smaller than the range end.
+    // S3 returns 206 for partial content, 200 if the file fits within the range.
     if (res.status !== 206 && res.status !== 200) {
         const body = await res.text().catch(() => "");
         return {
@@ -253,18 +303,15 @@ export async function handleGetResult(input) {
             totalBytes = parseInt(m[1], 10);
     }
     if (!totalBytes) {
-        // Full content (file fits within range, or Range header not honoured)
         const cl = parseInt(res.headers.get("content-length") ?? "0", 10);
         if (cl > 0)
             totalBytes = startByte + cl;
     }
-    // ── Step 3: Read bytes, sniff content type ────────────────────────────────
     const ab = await res.arrayBuffer();
     const bytes = new Uint8Array(ab);
     const sizeBytes = totalBytes ?? (startByte + bytes.byteLength);
     let detected = detectContent(bytes, objectKey);
     if (input.force_text && detected === "binary") {
-        // Re-run subtype detection without the binary gate so detected_as stays precise
         const head = String.fromCharCode(...bytes.slice(0, 3));
         const sampleStr = new TextDecoder("utf-8", { fatal: false }).decode(bytes.slice(0, 512));
         if (head.trimStart().startsWith("{") || head.trimStart().startsWith("["))
@@ -277,14 +324,18 @@ export async function handleGetResult(input) {
             detected = "text";
     }
     if (detected === "binary") {
-        // Auto-save binary files to ~/Downloads when no save_to was provided.
-        // Returning raw binary bytes as text produces garbled output — always save instead.
-        if (!savedTo) {
-            const autoFilename = input.save_filename ?? (objectKey.split("/").pop() ?? objectKey);
-            try {
-                // Re-fetch the full file for saving (the range fetch above was only a preview slice)
+        let savedTo;
+        const autoFilename = input.save_filename ?? (objectKey.split("/").pop() ?? objectKey);
+        try {
+            let fullBytes;
+            if (res.status === 200) {
+                // Range request returned the full file — reuse bytes, no second fetch needed.
+                fullBytes = bytes;
+            }
+            else {
+                // File is larger than the range window — fetch the full file for saving.
+                // 45s keeps total get_result call well under MCP transport timeout (~60s).
                 const fullController = new AbortController();
-                // 45s keeps total get_result call well under MCP transport timeout (~60s)
                 const fullTimer = setTimeout(() => fullController.abort(), 45_000);
                 let fullRes;
                 try {
@@ -293,15 +344,15 @@ export async function handleGetResult(input) {
                 finally {
                     clearTimeout(fullTimer);
                 }
-                if (fullRes.ok) {
-                    const fullBytes = new Uint8Array(await fullRes.arrayBuffer());
-                    savedTo = resolveSavePath(os.homedir() + "/Downloads", autoFilename);
-                    fs.writeFileSync(savedTo, fullBytes);
-                }
+                if (!fullRes.ok)
+                    throw new Error(`HTTP ${fullRes.status}`);
+                fullBytes = new Uint8Array(await fullRes.arrayBuffer());
             }
-            catch {
-                // Auto-save failed — fall through to the hint message
-            }
+            savedTo = resolveSavePath(os.homedir() + "/Downloads", autoFilename);
+            fs.writeFileSync(savedTo, fullBytes);
+        }
+        catch {
+            // Auto-save failed — fall through to hint message
         }
         const binaryContent = savedTo
             ? `[Binary file — ${sizeBytes.toLocaleString()} bytes. Auto-saved to: ${savedTo}]`
@@ -319,11 +370,7 @@ export async function handleGetResult(input) {
             truncated: false,
         };
     }
-    // ── Step 4: Decode the fetched slice as UTF-8, extract the window ────────
-    // bytes starts at startByte (byte offset). Decode all fetched bytes, then take
-    // up to max_chars characters. next_offset is computed from the actual byte length
-    // of the returned window so the next Range request starts at the correct byte boundary,
-    // even for files with multi-byte UTF-8 characters.
+    // ── Text: decode the fetched slice, extract the content window ────────────
     const raw = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
     const window = raw.slice(0, input.max_chars);
     const windowByteLength = new TextEncoder().encode(window).byteLength;
@@ -342,6 +389,6 @@ export async function handleGetResult(input) {
         next_offset: hasMore ? startByte + windowByteLength : undefined,
         truncated: hasMore,
         binary: false,
-        saved_to: savedTo,
+        saved_to: undefined,
     };
 }

@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { fileURLToPath } from "url";
+import { persistFinalizeQueue } from "../lib/finalize-store.js";
 import { resolveCredential, resolve3LOCredential, DEFAULT_SCOPES } from "../auth/credential-resolver.js";
 import { findCapabilityById, findOperationByGlobalId } from "../lib/registry-client.js";
 import { getActivity, createActivity, createActivityAlias, getNickname, ensureBucket, uploadJsonToOss, submitWorkItem, getSignedDownloadUrl, getSignedS3UploadUrl, uploadToS3, finalizeS3Upload, DAError, } from "../lib/da-client.js";
@@ -688,13 +689,16 @@ async function executeEngineApi(cap, op, input, t0) {
         return { status: "error", error: String(err) };
     }
     // ── Submit complete — return pending immediately ───────────────────────
-    // Never block the MCP transport with inline polling. S3 finalization and
-    // status checking are handled by get_workflow_status on the workflow_handle.
+    // Persist the finalize queue to disk so it survives connection drops and
+    // LLM handle reconstruction (which may zero out s3FinalizeQueue).
+    persistFinalizeQueue(workItemId, s3FinalizeQueue);
     return {
         status: "pending",
         mode: "engine_api",
         workItemId,
-        workflow_handle: { type: "da_workitem", workItemId, outputOssUrls, s3FinalizeQueue },
+        // s3FinalizeQueue is stripped from the handle — disk store is authoritative.
+        // Keeping large uploadKey payloads in the LLM-facing handle overflows the MCP stdio buffer.
+        workflow_handle: { type: "da_workitem", workItemId, outputOssUrls, s3FinalizeQueue: [] },
         durationMs: Date.now() - t0,
         hint: "WorkItem submitted. Call get_workflow_status(workflow_handle) to poll for completion. Repeat until status is 'success' or 'failed'.",
     };

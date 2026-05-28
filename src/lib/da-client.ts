@@ -14,20 +14,26 @@ async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
   timeoutMs = 20_000,
-  maxRetries = 2
+  maxRetries = 2,
+  parentSignal?: AbortSignal
 ): Promise<Response> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (parentSignal?.aborted) throw new DOMException("Aborted", "AbortError");
     if (attempt > 0) await sleep(1_000 * attempt); // 1s, 2s backoff
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const signal = parentSignal
+      ? AbortSignal.any([controller.signal, parentSignal])
+      : controller.signal;
     try {
-      return await fetch(url, { ...options, signal: controller.signal });
+      return await fetch(url, { ...options, signal });
     } catch (err) {
       clearTimeout(timer);
       const isRetryable =
-        (err instanceof Error && err.name === "AbortError") || // timeout
+        (err instanceof Error && err.name === "AbortError") || // timeout or parent abort
         (err instanceof TypeError);                            // connection reset / network error
-      if (!isRetryable || attempt === maxRetries) throw err;
+      // Don't retry if the parent signal was the reason for abort
+      if (!isRetryable || attempt === maxRetries || parentSignal?.aborted) throw err;
     } finally {
       clearTimeout(timer);
     }
@@ -371,7 +377,8 @@ export async function finalizeS3Upload(
   token: string,
   bucketKey: string,
   objectKey: string,
-  uploadKey: string
+  uploadKey: string,
+  signal?: AbortSignal
 ): Promise<void> {
   const res = await fetchWithTimeout(
     `${OSS_BASE}/buckets/${bucketKey}/objects/${encodeURIComponent(objectKey)}/signeds3upload`,
@@ -383,7 +390,9 @@ export async function finalizeS3Upload(
       },
       body: JSON.stringify({ uploadKey }),
     },
-    20_000
+    20_000,
+    2,
+    signal
   );
 
   if (!res.ok) {

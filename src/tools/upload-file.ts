@@ -2,6 +2,26 @@ import { readFileSync, statSync, existsSync } from "fs";
 import { basename, extname } from "path";
 import { homedir } from "os";
 import { z } from "zod";
+
+// ── OSS upload cache ──────────────────────────────────────────────────────
+// Keyed by resolvedPath:mtime:bucketKey:objectKey so the same file isn't
+// re-uploaded within a session. TTL is 30 min — well within transient bucket
+// 24h expiry. Cache is in-process only; restarts start fresh.
+
+interface OssCacheEntry { ossUrl: string; cachedAt: number; }
+const ossUploadCache = new Map<string, OssCacheEntry>();
+const CACHE_TTL_MS = 30 * 60 * 1000;
+
+function getCachedOssUrl(key: string): string | null {
+  const entry = ossUploadCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.cachedAt > CACHE_TTL_MS) { ossUploadCache.delete(key); return null; }
+  return entry.ossUrl;
+}
+
+function setCachedOssUrl(key: string, ossUrl: string): void {
+  ossUploadCache.set(key, { ossUrl, cachedAt: Date.now() });
+}
 import { resolveCredential } from "../auth/credential-resolver.js";
 import {
   getSignedS3UploadUrl,
@@ -61,6 +81,7 @@ export type UploadFileInput = z.infer<typeof uploadFileSchema>;
 export interface UploadFileResult {
   status: "success" | "bridge_required" | "error";
   oss_url?: string;
+  cached?: boolean;          // true when the OSS URL was returned from in-session cache (no upload performed)
   signed_download_url?: string;
   bucket_key?: string;
   object_key?: string;
@@ -125,6 +146,22 @@ export async function handleUploadFile(input: UploadFileInput): Promise<UploadFi
     };
   }
 
+  // ── Resolve file stat + cache check (before auth — cache hits need no token) ─
+  let fileBuffer: Buffer;
+  let fileSizeBytes: number;
+
+  const stat = statSync(resolvedPath);
+  if (!stat.isFile()) {
+    return { status: "error", error: `Path is not a file: '${resolvedPath}'` };
+  }
+
+  // Key includes bucket+object overrides so explicit routing always gets a fresh upload.
+  const cacheKey = `${resolvedPath}:${stat.mtimeMs}:${input.bucket_key ?? ""}:${input.object_key ?? ""}`;
+  const cachedUrl = getCachedOssUrl(cacheKey);
+  if (cachedUrl) {
+    return { status: "success", oss_url: cachedUrl, cached: true };
+  }
+
   // ── APS auth ──────────────────────────────────────────────────────────────
   let cred: { client_id: string; access_token: string };
   try {
@@ -139,15 +176,6 @@ export async function handleUploadFile(input: UploadFileInput): Promise<UploadFi
 
   const bucketKey = sanitizeBucketKey(input.bucket_key ?? `${cred.client_id}-uploads`);
   const objectKey = input.object_key ?? filename;
-
-  // ── Resolve file content ─────────────────────────────────────────────────
-  let fileBuffer: Buffer;
-  let fileSizeBytes: number;
-
-  const stat = statSync(resolvedPath);
-  if (!stat.isFile()) {
-    return { status: "error", error: `Path is not a file: '${resolvedPath}'` };
-  }
   const MAX_UPLOAD_BYTES = 500 * 1024 * 1024; // 500 MB
   if (stat.size > MAX_UPLOAD_BYTES) {
     return {
@@ -211,6 +239,10 @@ export async function handleUploadFile(input: UploadFileInput): Promise<UploadFi
   }
 
   const ossUrl = `oss://${bucketKey}/${objectKey}`;
+
+  // Cache the OSS URL so repeat calls for the same file skip the upload entirely.
+  setCachedOssUrl(cacheKey, ossUrl);
+
   let signedDownloadUrl: string | undefined;
   try {
     signedDownloadUrl = await getSignedDownloadUrl(cred.access_token, ossUrl);

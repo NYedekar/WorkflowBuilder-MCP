@@ -13911,11 +13911,13 @@
                           },
                           "resultJson": {
                             "url": "{signed-output-url}",
-                            "verb": "put"
+                            "verb": "put",
+                            "localName": "result.json"
                           },
                           "resultCsv": {
                             "url": "{signed-output-url}",
-                            "verb": "put"
+                            "verb": "put",
+                            "localName": "result.csv"
                           }
                         }
                       }
@@ -13971,11 +13973,13 @@
                           },
                           "resultJson": {
                             "url": "{signed-output-url}",
-                            "verb": "put"
+                            "verb": "put",
+                            "localName": "result.json"
                           },
                           "resultCsv": {
                             "url": "{signed-output-url}",
-                            "verb": "put"
+                            "verb": "put",
+                            "localName": "result.csv"
                           }
                         }
                       }

@@ -16,16 +16,16 @@ These are Autodesk proprietary formats. DO NOT attempt to read, parse, or proces
 
 Use this decision tree every time before picking a tool:
 
-1. Single intent + local file?
+1. Single intent + local file path?
    → process_file  (fast path: upload + run + return results in one call. No planning needed.)
 
-2. Multiple intents + local file?
+2. Multiple intents + local file path?
    → create_workflow(file_path=..., intents=[...])  — uploads the file ONCE, builds the DAG, returns oss_url.
    → Then execute_workflow(input_file_url=oss_url, ...) for each step in the DAG.
    NEVER call process_file multiple times for the same file — it re-uploads each time.
 
-3. File already in APS OSS (you have an oss:// URL)?
-   → execute_workflow directly — no upload needed.
+3. File already in APS OSS (you have an oss:// URL from a prior step)?
+   → execute_workflow directly — no upload needed. DO NOT call process_file with an oss:// URL.
 
 4. No file, just an APS REST operation or info question?
    → execute_workflow for REST calls. Answer from knowledge for pure info.
@@ -107,8 +107,27 @@ WHAT MD COVERS vs GAPS PER PRODUCT:
 ── STATUS HANDLING (process_file and execute_workflow) ──────────────────
 
 • success         → present outputs. Done. (REST operations only — Engine-API always returns pending first.)
-• pending         → Job still running. Call get_workflow_status(workflow_handle) again. Each call polls ~15s.
-                    STOP calling get_workflow_status the moment status is NOT 'pending'.
-                    Always read the next_action field — it tells you exactly what to do next.
+• pending         → Job still running. Call get_workflow_status(workflow_handle) IMMEDIATELY.
+                    DO NOT pause. DO NOT ask the user. DO NOT wait for confirmation.
+                    Each call polls ~15s then returns — call again right away if still pending.
+                    Revit jobs take 3–8 minutes; expect 15–30 pending responses. This is normal.
+                    ALWAYS read the next_action field — it overrides all other instructions.
+                    After ~2 minutes, next_action will say CHECK IN WITH USER — obey it exactly.
+                    This prevents Claude Desktop's session timeout from killing long-running jobs.
 • failed          → WorkItem failed. Check reportUrl for the DA execution log.
 • bridge_required → show REQUIRED_ACTION verbatim. Ask for the file's actual Mac path (~/Downloads/, OneDrive, or local folder). Retry with that path.
+
+── CHAIN RECOVERY (if polling chain breaks mid-job) ─────────────────────
+
+If you lose context and only have a workItemId (no full workflow_handle):
+
+  Step 1 · Call get_workflow_status with a minimal handle:
+           { "type": "da_workitem", "workItemId": "<id>", "outputOssUrls": [] }
+  Step 2 · If status=pending → keep polling with same minimal handle (outputs will be empty until success).
+  Step 3 · If status=success + outputOssUrls is empty → the output URLs were lost when the chain broke.
+           Ask the user: "The job succeeded but I lost track of the output file locations.
+           Can you paste the oss:// URLs from the original process_file response, or should I re-run the job?"
+  Step 4 · If status=failed → show reportUrl. Offer to re-run.
+
+NEVER tell the user "the MCP server is unresponsive" — if get_workflow_status returns pending, keep polling.
+NEVER pause between polls to summarize progress or ask for confirmation — poll continuously until done.

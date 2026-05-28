@@ -7,20 +7,26 @@ const OSS_BASE = "https://developer.api.autodesk.com/oss/v2";
 // hangs the MCP server indefinitely and forces the user to resubmit.
 // maxRetries=2 by default for all APS API calls.
 // Pass maxRetries=0 for S3 PUT uploads — partial uploads cannot safely be retried.
-async function fetchWithTimeout(url, options = {}, timeoutMs = 20_000, maxRetries = 2) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 20_000, maxRetries = 2, parentSignal) {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        if (parentSignal?.aborted)
+            throw new DOMException("Aborted", "AbortError");
         if (attempt > 0)
             await sleep(1_000 * attempt); // 1s, 2s backoff
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const signal = parentSignal
+            ? AbortSignal.any([controller.signal, parentSignal])
+            : controller.signal;
         try {
-            return await fetch(url, { ...options, signal: controller.signal });
+            return await fetch(url, { ...options, signal });
         }
         catch (err) {
             clearTimeout(timer);
-            const isRetryable = (err instanceof Error && err.name === "AbortError") || // timeout
+            const isRetryable = (err instanceof Error && err.name === "AbortError") || // timeout or parent abort
                 (err instanceof TypeError); // connection reset / network error
-            if (!isRetryable || attempt === maxRetries)
+            // Don't retry if the parent signal was the reason for abort
+            if (!isRetryable || attempt === maxRetries || parentSignal?.aborted)
                 throw err;
         }
         finally {
@@ -240,7 +246,7 @@ export async function uploadToS3(signedUrl, fileBuffer, contentType) {
         throw new DAError(`S3 upload failed (HTTP ${res.status}): ${body}`, res.status);
     }
 }
-export async function finalizeS3Upload(token, bucketKey, objectKey, uploadKey) {
+export async function finalizeS3Upload(token, bucketKey, objectKey, uploadKey, signal) {
     const res = await fetchWithTimeout(`${OSS_BASE}/buckets/${bucketKey}/objects/${encodeURIComponent(objectKey)}/signeds3upload`, {
         method: "POST",
         headers: {
@@ -248,7 +254,7 @@ export async function finalizeS3Upload(token, bucketKey, objectKey, uploadKey) {
             "Content-Type": "application/json",
         },
         body: JSON.stringify({ uploadKey }),
-    }, 20_000);
+    }, 20_000, 2, signal);
     if (!res.ok) {
         const body = await res.text();
         throw new DAError(`Finalize S3 upload failed: ${body}`, res.status);

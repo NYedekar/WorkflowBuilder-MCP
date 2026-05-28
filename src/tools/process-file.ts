@@ -84,9 +84,11 @@ export interface ProcessFileOutput {
 interface OutputFile {
   oss_url: string;
   content_type: string;
+  detected_as?: string;
   size_bytes?: number;
   total_chars?: number;
   content: string;
+  saved_to?: string;
   has_more: boolean;
   next_offset?: number;
   truncated: boolean;
@@ -126,25 +128,38 @@ export async function handleProcessFile(input: ProcessFileInput): Promise<Proces
     const ext = extname(filename).toLowerCase().slice(1);
 
     if (!capabilityId) {
-      // Neither capability nor operation supplied — search by extension + intent
-      const query = [ext, input.intent].filter(Boolean).join(" ");
-      const caps = searchCapabilities({ query, limit: 1 });
+      // Search with progressively broader queries until a callable capability is found.
+      // Vague intents (e.g. "convert DWG to PDF") may not match registry terms like "plot".
+      const queries = [
+        [ext, input.intent].filter(Boolean).join(" "),  // "dwg convert to pdf"
+        [ext, ...(input.intent ?? "").split(/\s+/).slice(-2)].join(" "), // "dwg to pdf"
+        ext,                                                              // "dwg" alone
+      ].filter((q, i, a) => q && a.indexOf(q) === i); // deduplicate
 
-      if (caps.length === 0) {
+      let foundCap: ReturnType<typeof searchCapabilities>[number] | undefined;
+      let usedQuery = queries[0];
+      for (const q of queries) {
+        const results = searchCapabilities({ query: q, limit: 3 });
+        const callable = results.find((c) => c.operations.some((o) => o.callable !== false));
+        if (callable) { foundCap = callable; usedQuery = q; break; }
+      }
+
+      if (!foundCap) {
         return {
           status: "no_capability_found",
           gap_note:
-            `⚠️ WorkflowSkills gap — searched: "${query}" | ` +
+            `⚠️ WorkflowSkills gap — searched: ${queries.map(q => `"${q}"`).join(", ")} | ` +
             `No capability found for .${ext} files. ` +
             `Use get_capability with a different query, or specify capability_id + operation_id directly.`,
         };
       }
 
-      capabilityId = caps[0].id;
+      capabilityId = foundCap.id;
       if (!operationId) {
-        const op = caps[0].operations.find((o) => o.callable !== false);
+        const op = foundCap.operations.find((o) => o.callable !== false);
         if (op) operationId = op.operationId;
       }
+      void usedQuery; // used in gap_note only
     } else {
       // capability_id supplied but operation_id missing — resolve from that specific capability
       const cap = findCapabilityById(capabilityId);
@@ -239,11 +254,15 @@ export async function handleProcessFile(input: ProcessFileInput): Promise<Proces
       // For binary outputs, skip inlining content — return oss_url only so the tool result stays small.
       // The model should call get_download_link or get_result(save_to=...) to retrieve the file.
       if (r.binary) {
+        // Propagate get_result's auto-save result — the file may already be in ~/Downloads.
+        // Do NOT synthesize a new content string that contradicts what get_result already did.
         return {
           oss_url: outUrl,
           content_type: r.content_type ?? "unknown",
+          detected_as: r.detected_as,
           size_bytes: r.size_bytes,
-          content: `[Binary output — ${(r.size_bytes ?? 0).toLocaleString()} bytes. Call get_download_link(oss_url="${outUrl}") to get a clickable download link, or get_result(oss_url=..., save_to="~/Downloads") to save to disk.]`,
+          content: r.content ?? `[Binary output — ${(r.size_bytes ?? 0).toLocaleString()} bytes.]`,
+          saved_to: r.saved_to,
           has_more: false,
           truncated: false,
           binary: true,
@@ -252,9 +271,11 @@ export async function handleProcessFile(input: ProcessFileInput): Promise<Proces
       return {
         oss_url: outUrl,
         content_type: r.content_type ?? "unknown",
+        detected_as: r.detected_as,
         size_bytes: r.size_bytes,
         total_chars: r.total_chars,
         content: r.content ?? (r.status === "error" ? `[fetch failed: ${r.error}]` : ""),
+        saved_to: r.saved_to,
         has_more: r.has_more ?? false,
         next_offset: r.next_offset,
         truncated: r.truncated ?? false,
