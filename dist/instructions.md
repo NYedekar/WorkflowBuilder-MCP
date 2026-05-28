@@ -31,34 +31,60 @@ If the user says "my projects", "my account", "list projects", "create project" 
 
 ── TOOL SELECTION ───────────────────────────────────────────────────────
 
-STEP 0 — GROUP TASKS BEFORE PICKING ANY TOOL (do this first, always):
-  List every task the user asked for. Group by local file path:
-    • Same file, 2+ intents  → one create_workflow call for that file
-    • Same file, 1 intent    → one process_file call
-    • Different file          → separate call per file
-    • No file (REST/info)    → execute_workflow or answer from knowledge
-  Resolve all groups in parallel where possible.
+STEP 0 — ANALYSE DEPENDENCIES, THEN ROUTE (do this before calling any tool):
 
-Example — "Extract params AND export PDFs from model.rvt; also convert drawing.dwg to PDF; list my ACC projects":
-  Group A: model.rvt × 2 intents → create_workflow(file_path=model.rvt, intents=[extract, export])
-  Group B: drawing.dwg × 1 intent → process_file(drawing.dwg, intent=convert to PDF)
-  Group C: no file → execute_workflow(acc:hub-admin.projects, list)
-  → Run A, B, C in parallel.
+  Group every task by input file path. For each file group, ask:
+  "Does any task need the OUTPUT of another task on this file as its INPUT?"
 
-1. Same file, 1 intent:
-   → process_file  (fast path: upload + run + return results in one call.)
+  CASE A — Sequential dependency (B's input = A's output):
+    → create_workflow(file_path, intents, relationships=[A→B sequential])
+    → execute_workflow(oss_url, A) → wait for A's result_oss_url
+    → execute_workflow(A's result_oss_url, B)
+    When: output of one DA job feeds the next (e.g. translate → extract from translated output).
 
-2. Same file, 2+ intents:
-   → create_workflow(file_path=..., intents=[...])  — uploads the file ONCE, returns oss_url + DAG.
-   → Read the next_action field in the response — it tells you exactly what to call for each step.
-   → For each DA step: execute_workflow(capability_id=..., operation_id=..., input_file_url=oss_url)
-   NEVER call process_file after create_workflow — the file is already in OSS, re-uploading wastes time.
-   NEVER pass the oss_url to process_file — process_file only accepts local Mac paths.
+  CASE B — Independent intents, same file (all just read the raw file; outputs unrelated):
+    → upload_file(file_path) → oss_url   (one upload, shared by all)
+    → execute_workflow(oss_url, intent1)  ┐ submit IN PARALLEL
+    → execute_workflow(oss_url, intent2)  ┘
+    One upload. Both DA jobs start simultaneously. Fastest option.
+    Do NOT use create_workflow here — it adds sequential overhead with no benefit.
+    Do NOT use process_file multiple times — it re-uploads each time.
 
-3. File already in APS OSS (you have an oss:// URL from a prior step)?
+  CASE C — Single intent, one file:
+    → process_file(file_path, intent)  (upload + submit in one call, simplest path)
+
+  CASE D — Independent intents, different files:
+    → Treat each file as its own Case B or C. Run all groups in parallel.
+
+  CASE E — No file (REST call or info):
+    → execute_workflow for REST. Answer from knowledge for pure info.
+
+  Example — "Extract params AND export PDF from model.rvt; convert drawing.dwg; list ACC projects":
+    model.rvt × 2 INDEPENDENT intents → CASE B:
+      upload_file(model.rvt) → oss_url
+      execute_workflow(oss_url, RevitExtractor)  ┐ parallel
+      execute_workflow(oss_url, RevitPDFExport)  ┘
+    drawing.dwg × 1 intent → CASE C: process_file(drawing.dwg)
+    no file (ACC)           → CASE E: execute_workflow(acc:hub-admin.projects)
+    → Run all three groups concurrently.
+
+1. Single intent + local file (CASE C):
+   → process_file  (fast path: upload + run in one call.)
+
+2. Sequential pipeline on same file (CASE A):
+   → create_workflow(file_path, intents, relationships) — read next_action in response.
+   → execute_workflow with each oss_url IN ORDER, passing prior step's output as next input.
+
+3. Independent intents on same file (CASE B):
+   → upload_file(file_path) → oss_url
+   → execute_workflow(input_file_url=oss_url, ...) for each intent IN PARALLEL.
+   NEVER call process_file for the same file after upload_file — it re-uploads.
+   NEVER pass oss_url to process_file — process_file only accepts local Mac paths.
+
+4. File already in APS OSS (you have an oss:// URL from a prior step)?
    → execute_workflow directly — no upload needed. DO NOT call process_file with an oss:// URL.
 
-4. No file, just an APS REST operation or info question?
+5. No file, just an APS REST operation or info question?
    → execute_workflow for REST calls. Answer from knowledge for pure info.
    REST tip: pass all parameters (path, query, body) in the single 'args' field — auto-routed.
    Example: execute_workflow(capability_id='BucketManagement', operation_id='create_bucket',
@@ -69,7 +95,7 @@ Example — "Extract params AND export PDFs from model.rvt; also convert drawing
 Step 1 — get_capability(query='<ext> <intent>') — call immediately, no confirmation needed.
 Step 2 — authenticate_aps() — call immediately, no confirmation needed. Credentials are pre-configured.
          • error → stop. Show error. Ask user to check APS credentials.
-Step 3 — Execute using the tool selected above (process_file or create_workflow + execute_workflow).
+Step 3 — Execute using the pattern selected in STEP 0 (Cases A–E above).
 
 ── CALLABLE: FALSE — MANDATORY FALLBACK PROTOCOL ───────────────────────
 

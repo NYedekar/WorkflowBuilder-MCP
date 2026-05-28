@@ -81,9 +81,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: "create_workflow",
-                description: "Use when the user has 2 or more intents for THE SAME local file (e.g. extract parameters AND export PDF from the same .rvt). " +
-                    "Uploads the file ONCE and runs all jobs on it — never call process_file multiple times for the same file path. " +
-                    "Do NOT use if the intents span different files — handle each file separately with process_file or execute_workflow.",
+                description: "Use ONLY when intents on the same file are SEQUENTIALLY DEPENDENT — the output of step A is the input to step B. " +
+                    "Uploads the file once and builds an execution DAG. " +
+                    "For INDEPENDENT intents on the same file (both just read the raw file), use upload_file → parallel execute_workflow instead — it is faster. " +
+                    "Do NOT use if intents are independent of each other.",
                 inputSchema: zodToJsonSchema(createWorkflowSchema),
             },
             {
