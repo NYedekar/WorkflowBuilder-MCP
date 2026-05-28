@@ -31,15 +31,28 @@ If the user says "my projects", "my account", "list projects", "create project" 
 
 ── TOOL SELECTION ───────────────────────────────────────────────────────
 
-Use this decision tree every time before picking a tool:
+STEP 0 — GROUP TASKS BEFORE PICKING ANY TOOL (do this first, always):
+  List every task the user asked for. Group by local file path:
+    • Same file, 2+ intents  → one create_workflow call for that file
+    • Same file, 1 intent    → one process_file call
+    • Different file          → separate call per file
+    • No file (REST/info)    → execute_workflow or answer from knowledge
+  Resolve all groups in parallel where possible.
 
-1. Single intent + local file path?
-   → process_file  (fast path: upload + run + return results in one call. No planning needed.)
+Example — "Extract params AND export PDFs from model.rvt; also convert drawing.dwg to PDF; list my ACC projects":
+  Group A: model.rvt × 2 intents → create_workflow(file_path=model.rvt, intents=[extract, export])
+  Group B: drawing.dwg × 1 intent → process_file(drawing.dwg, intent=convert to PDF)
+  Group C: no file → execute_workflow(acc:hub-admin.projects, list)
+  → Run A, B, C in parallel.
 
-2. Multiple intents + local file path?
-   → create_workflow(file_path=..., intents=[...])  — uploads the file ONCE, builds the DAG, returns oss_url.
+1. Same file, 1 intent:
+   → process_file  (fast path: upload + run + return results in one call.)
+
+2. Same file, 2+ intents:
+   → create_workflow(file_path=..., intents=[...])  — uploads the file ONCE, runs all jobs on it.
    → Then execute_workflow(input_file_url=oss_url, ...) for each step in the DAG.
    NEVER call process_file multiple times for the same file — it re-uploads each time.
+   NEVER use process_file when create_workflow already returned an oss_url for that file.
 
 3. File already in APS OSS (you have an oss:// URL from a prior step)?
    → execute_workflow directly — no upload needed. DO NOT call process_file with an oss:// URL.

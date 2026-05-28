@@ -137,7 +137,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "create_workflow",
-        description: "Use when the user's request has MULTIPLE intents for an Autodesk file or pipeline.",
+        description:
+          "Use when the user has 2 or more intents for THE SAME local file (e.g. extract parameters AND export PDF from the same .rvt). " +
+          "Uploads the file ONCE and runs all jobs on it — never call process_file multiple times for the same file path. " +
+          "Do NOT use if the intents span different files — handle each file separately with process_file or execute_workflow.",
         inputSchema: zodToJsonSchema(createWorkflowSchema),
       },
       {
