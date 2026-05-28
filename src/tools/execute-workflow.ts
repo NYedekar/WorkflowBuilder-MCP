@@ -179,7 +179,7 @@ interface OperationSummary {
 }
 
 export interface ExecuteWorkflowResult {
-  status: "success" | "pending" | "failed" | "activity_not_found" | "error";
+  status: "success" | "pending" | "failed" | "activity_not_found" | "error" | "3lo_required";
   mode?: "engine_api" | "rest";
   // Engine-API fields
   workItemId?: string;
@@ -368,7 +368,7 @@ async function executeRest(
         token = cred3lo.access_token;
       } else {
         return {
-          status: "error",
+          status: "3lo_required",
           capability: capSummary(cap),
           operation: opSummary(op),
           error: "3LO_REQUIRED",

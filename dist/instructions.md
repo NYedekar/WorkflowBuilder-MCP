@@ -118,8 +118,9 @@ WHAT MD COVERS vs GAPS PER PRODUCT:
                     After ~2 minutes, next_action will say CHECK IN WITH USER — obey it exactly.
                     This prevents Claude Desktop's session timeout from killing long-running jobs.
 • failed          → WorkItem failed. Check reportUrl for the DA execution log.
-• 3LO_REQUIRED    → Call authenticate_aps_3lo() immediately — no confirmation needed. It opens a browser login,
-                    stores the token, then re-call the original execute_workflow with the same args. Never ask the user to
+• 3lo_required    → status="3lo_required". Call authenticate_aps_3lo() immediately — no confirmation needed.
+                    It opens a browser login and stores the token. Once it returns success, immediately re-call
+                    execute_workflow with the same capability_id, operation_id, and args. Never ask the user to
                     "provide a bearer_token" manually — authenticate_aps_3lo handles it automatically.
 • bridge_required → show REQUIRED_ACTION verbatim. Ask for the file's actual Mac path (~/Downloads/, OneDrive, or local folder). Retry with that path.
 

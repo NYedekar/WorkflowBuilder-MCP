@@ -241,7 +241,7 @@ async function executeRest(cap, op, input, t0) {
             }
             else {
                 return {
-                    status: "error",
+                    status: "3lo_required",
                     capability: capSummary(cap),
                     operation: opSummary(op),
                     error: "3LO_REQUIRED",
