@@ -31,7 +31,8 @@ export interface AuthenticateApsResult {
   scopes_granted?: string[];
   access_token_expires_in?: number;
   keychain_stored?: boolean;
-  session_recovery?: string; // non-null when jobs from a prior server instance are resumable
+  session_recovery?: string; // human-readable summary of recoverable jobs from a prior server instance
+  _resume_handles?: Array<{ type: string; workItemId: string; outputOssUrls: string[] }>; // pass directly as workflow_handle to get_workflow_status
   error?: string;
   hint?: string;
 }
@@ -90,7 +91,7 @@ export async function handleAuthenticateAps(
       scopes_granted: scopes,
       access_token_expires_in: token.expires_in,
       keychain_stored: keychainStored,
-      ...(recovery ? { session_recovery: recovery } : {}),
+      ...(recovery ? { session_recovery: recovery.summary, _resume_handles: recovery.handles } : {}),
     };
   } catch (err) {
     if (err instanceof APSAuthError) {

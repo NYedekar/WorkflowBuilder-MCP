@@ -95,6 +95,9 @@ STEP 0 — ANALYSE DEPENDENCIES, THEN ROUTE (do this before calling any tool):
 Step 1 — get_capability (parallel lookups, one per intent) — call immediately, no confirmation needed.
 Step 2 — authenticate_aps() — call immediately, no confirmation needed. Credentials are pre-configured.
          • error → stop. Show error. Ask user to check APS credentials.
+         • session_recovery present → tell the user ("I see jobs from a previous session: <summary>"),
+           then IMMEDIATELY proceed with the current task. Do NOT auto-resume. Do NOT wait for
+           confirmation. Only resume an old job if the user explicitly asks you to.
 Step 3 — PRESENT EXECUTION PLAN (mandatory, before any upload or job submission):
          After capability discovery, output a brief plan showing every task, its capability +
          operation, and the execution pattern. Then proceed immediately — do not wait for confirmation.

@@ -137,20 +137,17 @@ export async function handleUploadFile(input: UploadFileInput): Promise<UploadFi
     };
   }
 
-  // ── OneDrive cloud-only detection (before generic existence check) ────────
-  // Files in ~/Library/CloudStorage/OneDrive* are cloud-only when not yet synced.
-  // !existsSync on a cloud-only file gives a confusing "not found" error — be specific.
-  const isOneDrivePath = resolvedPath.includes("/Library/CloudStorage/OneDrive");
-  if (isOneDrivePath && !existsSync(resolvedPath)) {
-    return {
-      status: "error",
-      error: `File '${filename}' is cloud-only in OneDrive — it has not been downloaded to this Mac yet.`,
-      hint: `Open Finder, navigate to the file, and click it once to sync it locally. Then retry.`,
-    };
-  }
-
-  // ── File existence check ──────────────────────────────────────────────────
-  if (!existsSync(resolvedPath)) {
+  // ── File existence check (with OneDrive cloud-only specialisation) ────────
+  const fileExists = existsSync(resolvedPath);
+  if (!fileExists) {
+    const isOneDrivePath = resolvedPath.includes("/Library/CloudStorage/OneDrive");
+    if (isOneDrivePath) {
+      return {
+        status: "error",
+        error: `File '${filename}' is cloud-only in OneDrive — it has not been downloaded to this Mac yet.`,
+        hint: `Open Finder, navigate to the file, and click it once to sync it locally. Then retry.`,
+      };
+    }
     return {
       status: "error",
       error: `File not found: '${resolvedPath}'`,

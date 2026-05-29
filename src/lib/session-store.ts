@@ -1,6 +1,7 @@
 // Session store — persists upload cache and active jobs across server restarts.
 // Location: ~/Library/Application Support/mcp-workflow-builder/session.json
-// TTL: 24h — matches APS transient bucket lifetime.
+// Upload cache TTL: 20h (4h safety margin before APS 24h transient bucket expiry).
+// Job TTL: 24h.
 
 import * as fs from "fs";
 import * as path from "path";
@@ -112,26 +113,37 @@ export function removeActiveJob(workItemId: string): void {
   }
 }
 
-// Returns a recovery hint for jobs submitted in a previous server instance, or null if none.
-export function getSessionRecoverySummary(): string | null {
+export interface SessionRecovery {
+  summary: string;
+  handles: Array<{ type: string; workItemId: string; outputOssUrls: string[] }>;
+}
+
+// Returns recovery info for jobs submitted in a previous server instance, or null if none.
+export function getSessionRecoverySummary(): SessionRecovery | null {
   const s = load();
   const jobs = Object.values(s.jobs);
   if (jobs.length === 0) return null;
+
+  const handles = jobs.map((j) => ({
+    type: "da_workitem",
+    workItemId: j.workItemId,
+    outputOssUrls: j.outputOssUrls,
+  }));
+
   const list = jobs
-    .map((j) => {
-      const handle = JSON.stringify({
-        type: "da_workitem",
-        workItemId: j.workItemId,
-        outputOssUrls: j.outputOssUrls,
-      });
+    .map((j, i) => {
+      const time = new Date(j.submittedAt).toISOString().slice(11, 19); // HH:MM:SS, locale-invariant
       return (
-        `  • ${j.capability_id ?? "unknown"} · submitted ${new Date(j.submittedAt).toLocaleTimeString()}\n` +
-        `    Resume: get_workflow_status(workflow_handle=${handle})`
+        `  • [${i}] ${j.capability_id ?? "unknown"} · submitted ${time} · ` +
+        `workItemId=${j.workItemId.slice(0, 12)}…`
       );
     })
     .join("\n");
-  return (
-    `RECOVERED SESSION — ${jobs.length} job(s) from a previous server instance may still be running:\n${list}\n` +
-    `Call get_workflow_status with the handle above to check status and retrieve outputs.`
-  );
+
+  return {
+    summary:
+      `RECOVERED SESSION — ${jobs.length} job(s) from a previous server instance may still be running:\n${list}\n` +
+      `Use _resume_handles[i] as the workflow_handle value in get_workflow_status to check status.`,
+    handles,
+  };
 }

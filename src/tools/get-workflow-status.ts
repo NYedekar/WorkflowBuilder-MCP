@@ -33,7 +33,10 @@ export const getWorkflowStatusSchema = z.object({
 
 export type GetWorkflowStatusInput = z.infer<typeof getWorkflowStatusSchema>;
 
-const POLL_TIMEOUT_MS = 25_000; // fixed — never expose this to the LLM. 25s saves ~39% round-trips on 7-min Revit jobs vs 15s.
+// Fixed — never expose to the LLM. 25s deadline saves ~39% round-trips on 7-min Revit jobs vs 15s (normal network).
+// Note: fetchWithTimeout uses maxRetries=2 by default, so a single iteration can overrun to ~36s in worst case.
+// Worst-case get_workflow_status duration: ~36s (poll) + 12s (finalize) = ~48s — within MCP 60s transport limit.
+const POLL_TIMEOUT_MS = 25_000;
 
 export interface GetWorkflowStatusOutput {
   status: "pending" | "running" | "success" | "failed" | "cancelled" | "error";
