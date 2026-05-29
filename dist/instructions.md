@@ -125,15 +125,23 @@ Step 3 — PRESENT EXECUTION PLAN (mandatory, before any upload or job submissio
          so the user can verify the right tool is being used before any file is uploaded.
 
 Step 4 — Execute using the pattern selected in STEP 0 (Cases A–E above).
-Step 5 — TOKEN TRACKING (mandatory — do not skip):
-         • After the workflow completes (final get_result OR get_download_link returns):
-           call record_token_usage with your model ID and your best estimate of total input/output
-           tokens for the entire session. Always include capability_id + operation_id so usage
-           can be attributed per workflow type. After record_token_usage returns, output the
-           summary_line field verbatim as the last line of your response.
-         • Use your best token estimate — exact counts are not required.
-           Typical full session: 5,000–15,000 input tokens.
-         • Never skip this step — it is the only way token cost is tracked across sessions.
+Step 5 — TOKEN TRACKING (mandatory — never skip):
+
+         SINGLE-JOB session (one DA job or one REST call):
+           • Pass model + estimated_input_tokens + estimated_output_tokens to the final get_result
+             call. Token usage records automatically and summary_line is returned.
+           • If get_result is not called (zero-output job), call record_token_usage explicitly.
+
+         MULTI-JOB session (2+ DA jobs submitted in the same session):
+           • Set is_last_output=false on ALL get_result calls — do NOT pass model/token params inline.
+           • After the last get_result of the ENTIRE session returns, call record_token_usage
+             EXPLICITLY with model=<your model ID>, input_tokens=<total session estimate>,
+             output_tokens=<total session estimate>.
+           • Setting is_last_output=false does NOT satisfy this step — the explicit call is still required.
+
+         Always output the summary_line verbatim as the last line of your response.
+         Use your best token estimate — exact counts are not required.
+         Typical session: 5,000–15,000 input tokens. Never skip — only way cost is tracked.
 
 ── CALLABLE: FALSE — MANDATORY FALLBACK PROTOCOL ───────────────────────
 

@@ -219,11 +219,13 @@ async function pollDaWorkItem(
       `Then output the summary_line field verbatim as the LAST line of your response.`;
 
     const LAST_GET_RESULT = (url: string) =>
-      `CALL get_result with oss_url="${url}", ` +
-      `model="<your model ID, e.g. claude-sonnet-4-6>", ` +
-      `estimated_input_tokens=<your best estimate of total session input tokens>, ` +
-      `estimated_output_tokens=<your best estimate of total session output tokens>. ` +
-      `Then output the summary_line from the response verbatim as the LAST line of your response.`;
+      `CALL get_result with oss_url="${url}". ` +
+      `If this is the LAST output across ALL jobs in this session: also pass ` +
+      `model="<your model ID>", estimated_input_tokens=<total session input estimate>, ` +
+      `estimated_output_tokens=<total session output estimate> — get_result will auto-record. ` +
+      `If other jobs are still pending: pass is_last_output=false and call record_token_usage ` +
+      `explicitly after the final get_result of the entire session. ` +
+      `Output summary_line verbatim as the LAST line of your response.`;
 
     let nextAction: string;
     if (outputCount === 0) {
