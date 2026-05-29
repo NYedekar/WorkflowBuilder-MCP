@@ -4,10 +4,10 @@ import { searchCapabilities, findCapabilityById, type CapabilityRecord, type Ope
 // ── Verified ops (E2E tested) ─────────────────────────────────────────────
 // Key format: "capabilityId/operationId". Add here as ops are confirmed working.
 const VERIFIED_OPS = new Set([
-  "autocad:AutoCADPlotToPDF/plot-to-pdf",
+  "autocad:AutoCADPlotToPDF/plot-all-sheets-to-pdf", // E2E confirmed (DWG→PDF smoke test)
   "revit:RevitExtractor/extract-all-parameters",
   "revit:RevitPDFExport/export-sheets-to-pdf",
-  "revit:RevitViewsPDFExport/export-views-to-pdf",
+  "revit:RevitPDFExport/export-views-to-pdf",        // same capability as sheets, not RevitViewsPDFExport
   "aps:md.jobs/start_translation_job",
   "aps:md.manifest/fetch_manifest",
   "aps:md.metadata/list_model_views",
@@ -16,7 +16,7 @@ const VERIFIED_OPS = new Set([
   "aps:md.thumbnail/fetch_thumbnail",
   "aps:dm.oss_buckets/create_bucket",
   "aps:dm.oss_buckets/list_buckets",
-  "acc:hub-admin.projects/list_projects",
+  "acc:hub-admin.projects/acc.admin_list_projects",  // actual operationId confirmed in registry
 ]);
 
 export const getCapabilitySchema = z.object({
@@ -75,9 +75,10 @@ interface CapabilitySummary {
 
 interface OperationSummary {
   operationId: string;
+  displayName: string;
   callable: boolean;
   verified?: boolean;           // true = E2E tested and confirmed working
-  estimated_tokens?: string;    // rough token cost hint for execution plan
+  estimated_tokens?: string;    // rough token cost hint for execution plan (callable ops only)
   // REST-specific
   httpMethod?: string;
   endpoint?: string;
@@ -118,15 +119,19 @@ export async function handleGetCapability(
     const isExact = !!input.capability_id && !input.query;
     const opsToShow = isExact ? c.operations : c.operations.slice(0, 10);
 
-    const opSummaries: OperationSummary[] = opsToShow.map((o) => ({
-      operationId: o.operationId,
-      callable: o.callable !== false,
-      ...(VERIFIED_OPS.has(`${c.id}/${o.operationId}`) ? { verified: true } : {}),
-      estimated_tokens: estimateTokens(o, isEngineApi),
-      httpMethod: o.httpMethod,
-      endpoint: o.endpoint,
-      ...(o.authScopes?.length ? { authScopes: o.authScopes } : {}),
-    }));
+    const opSummaries: OperationSummary[] = opsToShow.map((o) => {
+      const isCallable = o.callable !== false;
+      return {
+        operationId: o.operationId,
+        displayName: o.displayName,
+        callable: isCallable,
+        ...(VERIFIED_OPS.has(`${c.id}/${o.operationId}`) ? { verified: true } : {}),
+        ...(isCallable ? { estimated_tokens: estimateTokens(o, isEngineApi) } : {}),
+        httpMethod: o.httpMethod,
+        endpoint: o.endpoint,
+        ...(o.authScopes?.length ? { authScopes: o.authScopes } : {}),
+      };
+    });
 
     return {
       id: c.id,

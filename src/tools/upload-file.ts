@@ -140,9 +140,7 @@ export async function handleUploadFile(input: UploadFileInput): Promise<UploadFi
   // ── OneDrive cloud-only detection (before generic existence check) ────────
   // Files in ~/Library/CloudStorage/OneDrive* are cloud-only when not yet synced.
   // !existsSync on a cloud-only file gives a confusing "not found" error — be specific.
-  const isOneDrivePath =
-    resolvedPath.includes("/Library/CloudStorage/OneDrive") ||
-    resolvedPath.includes("/Library/CloudStorage/One Drive");
+  const isOneDrivePath = resolvedPath.includes("/Library/CloudStorage/OneDrive");
   if (isOneDrivePath && !existsSync(resolvedPath)) {
     return {
       status: "error",

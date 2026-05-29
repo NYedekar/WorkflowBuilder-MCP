@@ -159,7 +159,7 @@ SUPPORTED FORMATS — full object tree + properties:
 
 STANDARD MD EXTRACTION FLOW — execute these steps in order:
   Step 1 · Upload file (if not already in OSS) → get oss_url
-  Step 2 · execute_workflow(capability_id="aps:md.jobs", operation_id="start_translation_job", input_file_url=oss_url)
+  Step 2 · execute_workflow(capability_id="aps:md.jobs", operation_id="start_translation_job", input_file_url="<oss_url from upload_file>")
            → returns urn. If asyncJob=true, poll fetch_manifest until status='success'.
   Step 3 · execute_workflow(capability_id="aps:md.manifest", operation_id="fetch_manifest", args={"urn": "<urn>"})
            → confirms translation complete. DO NOT use GUIDs from this manifest for metadata calls.

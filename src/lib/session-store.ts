@@ -29,7 +29,7 @@ interface SessionData {
   jobs: Record<string, ActiveJob>;
 }
 
-const UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
+const UPLOAD_TTL_MS = 20 * 60 * 60 * 1000; // 20h — 4h safety margin before APS 24h transient bucket expiry
 const JOB_TTL_MS   = 24 * 60 * 60 * 1000;
 
 let _session: SessionData | null = null;
@@ -66,12 +66,14 @@ function save(): void {
 function prune(): void {
   if (!_session) return;
   const now = Date.now();
+  let pruned = false;
   for (const [k, e] of Object.entries(_session.uploads)) {
-    if (now - e.cachedAt > UPLOAD_TTL_MS) delete _session.uploads[k];
+    if (now - e.cachedAt > UPLOAD_TTL_MS) { delete _session.uploads[k]; pruned = true; }
   }
   for (const [id, j] of Object.entries(_session.jobs)) {
-    if (now - j.submittedAt > JOB_TTL_MS) delete _session.jobs[id];
+    if (now - j.submittedAt > JOB_TTL_MS) { delete _session.jobs[id]; pruned = true; }
   }
+  if (pruned) save();
 }
 
 // ── Upload cache ──────────────────────────────────────────────────────────
@@ -116,16 +118,20 @@ export function getSessionRecoverySummary(): string | null {
   const jobs = Object.values(s.jobs);
   if (jobs.length === 0) return null;
   const list = jobs
-    .map(
-      (j) =>
-        `  workItemId=${j.workItemId.slice(0, 12)}… ` +
-        (j.capability_id ? `capability=${j.capability_id} ` : "") +
-        `submitted=${new Date(j.submittedAt).toLocaleTimeString()}`
-    )
+    .map((j) => {
+      const handle = JSON.stringify({
+        type: "da_workitem",
+        workItemId: j.workItemId,
+        outputOssUrls: j.outputOssUrls,
+      });
+      return (
+        `  • ${j.capability_id ?? "unknown"} · submitted ${new Date(j.submittedAt).toLocaleTimeString()}\n` +
+        `    Resume: get_workflow_status(workflow_handle=${handle})`
+      );
+    })
     .join("\n");
   return (
-    `${jobs.length} job(s) from a previous server session may still be active:\n${list}\n` +
-    `To resume, call get_workflow_status with: ` +
-    `{ "type": "da_workitem", "workItemId": "<id>", "outputOssUrls": [] }`
+    `RECOVERED SESSION — ${jobs.length} job(s) from a previous server instance may still be running:\n${list}\n` +
+    `Call get_workflow_status with the handle above to check status and retrieve outputs.`
   );
 }

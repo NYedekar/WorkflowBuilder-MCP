@@ -4,7 +4,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "validate-registry": "tsx scripts/validate-registry.ts",
+    "validate-registry": "node scripts/validate-registry.js",
     "build": "npm run validate-registry && tsc && cp src/instructions.md dist/instructions.md",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
