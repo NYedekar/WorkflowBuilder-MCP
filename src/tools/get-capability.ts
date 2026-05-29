@@ -77,8 +77,7 @@ interface OperationSummary {
   operationId: string;
   displayName: string;
   callable: boolean;
-  verified?: boolean;           // true = E2E tested and confirmed working
-  estimated_tokens?: string;    // rough token cost hint for execution plan (callable ops only)
+  verified?: boolean;   // true = E2E tested and confirmed working
   // REST-specific
   httpMethod?: string;
   endpoint?: string;
@@ -119,19 +118,15 @@ export async function handleGetCapability(
     const isExact = !!input.capability_id && !input.query;
     const opsToShow = isExact ? c.operations : c.operations.slice(0, 10);
 
-    const opSummaries: OperationSummary[] = opsToShow.map((o) => {
-      const isCallable = o.callable !== false;
-      return {
-        operationId: o.operationId,
-        displayName: o.displayName,
-        callable: isCallable,
-        ...(VERIFIED_OPS.has(`${c.id}/${o.operationId}`) ? { verified: true } : {}),
-        ...(isCallable ? { estimated_tokens: estimateTokens(o, isEngineApi) } : {}),
-        httpMethod: o.httpMethod,
-        endpoint: o.endpoint,
-        ...(o.authScopes?.length ? { authScopes: o.authScopes } : {}),
-      };
-    });
+    const opSummaries: OperationSummary[] = opsToShow.map((o) => ({
+      operationId: o.operationId,
+      displayName: o.displayName,
+      callable: o.callable !== false,
+      ...(VERIFIED_OPS.has(`${c.id}/${o.operationId}`) ? { verified: true } : {}),
+      httpMethod: o.httpMethod,
+      endpoint: o.endpoint,
+      ...(o.authScopes?.length ? { authScopes: o.authScopes } : {}),
+    }));
 
     return {
       id: c.id,
@@ -147,19 +142,3 @@ export async function handleGetCapability(
   return { count: summaries.length, capabilities: summaries };
 }
 
-// ── Token estimation ──────────────────────────────────────────────────────
-// Rough per-operation estimate shown in execution plan briefing (±40% accuracy).
-// Engine-API jobs dominate: N polls × ~200t + result. REST calls are one round-trip.
-
-function estimateTokens(op: OperationRecord, isEngineApi: boolean): string {
-  if (isEngineApi) {
-    // Revit: 25–40 polls × 200t + 1K result ≈ 6K–9K
-    // AutoCAD: 3–8 polls × 200t + 500t ≈ 1K–2K
-    const engine = (op.engine ?? "").toLowerCase();
-    if (engine.includes("revit")) return "~6,000–9,000t (includes polling)";
-    if (engine.includes("autocad")) return "~1,000–2,500t (includes polling)";
-    return "~2,000–8,000t (includes polling)";
-  }
-  // REST: single call — cost is mostly instructions overhead + response size
-  return "~300–1,000t (single call)";
-}
