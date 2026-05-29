@@ -208,19 +208,34 @@ async function pollDaWorkItem(
   try { removeActiveJob(handle.workItemId); } catch { /* non-fatal */ }
 
   if (daStatus === "success") {
-    const outputCount = handle.outputOssUrls.length;
+    const urls = handle.outputOssUrls;
+    const outputCount = urls.length;
+
+    const TOKEN_SUFFIX =
+      `CALL record_token_usage with model=<your model ID>, ` +
+      `input_tokens=<estimated total session input>, output_tokens=<estimated total session output>, ` +
+      `and the capability_id + operation_id from this workflow. ` +
+      `Then output the summary_line field verbatim as the LAST line of your response.`;
+
+    let nextAction: string;
+    if (outputCount === 0) {
+      nextAction = `STOP POLLING. Job completed with no output files. ${TOKEN_SUFFIX}`;
+    } else if (outputCount === 1) {
+      nextAction =
+        `STOP POLLING. CALL get_result for ${urls[0]}. ` +
+        `After get_result returns: ${TOKEN_SUFFIX}`;
+    } else {
+      const steps = urls.map((u, i) =>
+        i < urls.length - 1
+          ? `CALL get_result for ${u}`
+          : `CALL get_result for ${u} — after this last get_result returns: ${TOKEN_SUFFIX}`
+      );
+      nextAction = `STOP POLLING. ${steps.join(". Then ")}`;
+    }
+
     return {
       status: "success",
-      next_action: outputCount > 0
-        ? `STOP POLLING. ` +
-          `CALL get_result NOW on each of the ${outputCount} outputOssUrls. Do not wait or ask the user. ` +
-          `After ALL get_result calls complete: CALL record_token_usage with model=<your model ID>, ` +
-          `input_tokens=<estimated total session input>, output_tokens=<estimated total session output>, ` +
-          `and the capability_id + operation_id from this workflow. ` +
-          `Then output the summary_line field verbatim as the LAST line of your response.`
-        : `STOP POLLING. Job completed with no output files. ` +
-          `CALL record_token_usage with model=<your model ID> and estimated session tokens. ` +
-          `Then output summary_line as the last line.`,
+      next_action: nextAction,
       workItemId: handle.workItemId,
       outputOssUrls: handle.outputOssUrls,
       reportUrl: finalItem!.reportUrl,
