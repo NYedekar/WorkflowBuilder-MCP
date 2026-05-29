@@ -55,8 +55,8 @@ export const renderModelSchema = z.object({
 export type RenderModelInput = z.infer<typeof renderModelSchema>;
 
 export type RenderModelOutput =
-  | { status: "success"; urn: string; file_path: string; message: string }             // viewer: saved + opened in browser
-  | { status: "success"; urn: string; thumbnail_base64: string; content_type: string } // thumbnail: MCP image block
+  | { status: "success"; urn: string; file_path: string; message: string; expires_at: string }  // viewer: saved + opened in browser
+  | { status: "success"; urn: string; thumbnail_base64: string; content_type: string }          // thumbnail: MCP image block
   | { status: "pending"; urn: string; message: string }
   | { status: "error"; error: string; hint?: string };
 
@@ -308,6 +308,8 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
     };
   }
 
+  const expiresAt = new Date(Date.now() + viewerTtl * 1000).toISOString();
+
   try {
     await execAsync(`open "${filePath}"`);
   } catch (err) {
@@ -316,9 +318,11 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
       status: "success",
       urn,
       file_path: filePath,
+      expires_at: expiresAt,
       message:
         `Viewer saved to ${filePath}. ` +
-        `Could not auto-open (${String(err)}). Double-click the file to open it in your browser.`,
+        `Could not auto-open (${String(err)}). Double-click the file to open it in your browser. ` +
+        `Token expires at ${expiresAt} — call render_model again to regenerate.`,
     };
   }
 
@@ -326,10 +330,10 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
     status: "success",
     urn,
     file_path: filePath,
+    expires_at: expiresAt,
     message:
       `Viewer opened in your default browser. ` +
-      `File saved at: ${filePath} — you can bookmark or share it. ` +
-      `The token embedded in this file expires in ~${Math.floor(viewerTtl / 60)} minutes; ` +
-      `call render_model again to regenerate a fresh copy.`,
+      `File saved at: ${filePath}. ` +
+      `Token expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — call render_model again to regenerate a fresh copy.`,
   };
 }

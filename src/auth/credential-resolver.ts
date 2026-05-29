@@ -105,6 +105,18 @@ export async function resolve3LOCredential(
     return { client_id: clientId, access_token: cached, scopes, expires_in_seconds: ttl };
   }
 
+  // 1b. Secondary lookup: authenticate_aps_3lo always stores under DEFAULT_3LO_SCOPES key.
+  // If the requested scopes are a subset of those, the stored token is valid for this op too.
+  // Without this, every 3LO op with a different scope list causes an unnecessary keychain refresh.
+  const defaultKey = `3lo:${clientId}:${DEFAULT_3LO_SCOPES.slice().sort().join(",")}`;
+  if (cacheKey !== defaultKey) {
+    const cachedDefault = getCachedToken(defaultKey);
+    if (cachedDefault && scopes.every((s) => DEFAULT_3LO_SCOPES.includes(s))) {
+      const ttl = getRemainingTtlSeconds(defaultKey) ?? 300;
+      return { client_id: clientId, access_token: cachedDefault, scopes, expires_in_seconds: ttl };
+    }
+  }
+
   // 2. APS_ACCESS_TOKEN env var (manual bearer token override)
   const envToken = process.env.APS_ACCESS_TOKEN?.trim();
   if (envToken) {

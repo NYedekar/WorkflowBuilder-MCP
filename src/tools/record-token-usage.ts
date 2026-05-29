@@ -98,6 +98,7 @@ export interface RecordTokenUsageOutput {
     output_tokens: number;
     total_tokens: number;
   };
+  summary_line: string; // Output this verbatim as the last line of your response after every workflow.
 }
 
 // Per-process session ID (stable for the lifetime of one MCP server instance).
@@ -137,6 +138,11 @@ export async function handleRecordTokenUsage(
   sessionInputTotal += input.input_tokens;
   sessionOutputTotal += input.output_tokens;
 
+  const total = sessionInputTotal + sessionOutputTotal;
+  const summaryLine =
+    `Session token usage: ${total.toLocaleString()} tokens ` +
+    `(${sessionInputTotal.toLocaleString()} input · ${sessionOutputTotal.toLocaleString()} output) — ${input.model}`;
+
   return {
     status: "recorded",
     record_id,
@@ -144,7 +150,8 @@ export async function handleRecordTokenUsage(
     running_totals: {
       input_tokens: sessionInputTotal,
       output_tokens: sessionOutputTotal,
-      total_tokens: sessionInputTotal + sessionOutputTotal,
+      total_tokens: total,
     },
+    summary_line: summaryLine,
   };
 }

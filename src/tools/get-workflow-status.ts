@@ -3,6 +3,7 @@ import { resolveCredential } from "../auth/credential-resolver.js";
 import { pollWorkItem, finalizeS3Upload } from "../lib/da-client.js";
 import type { WorkflowHandle, S3FinalizeEntry } from "./execute-workflow.js";
 import { loadFinalizeQueue, cleanFinalizeQueue } from "../lib/finalize-store.js";
+import { removeActiveJob } from "../lib/session-store.js";
 
 // ── Schema ────────────────────────────────────────────────────────────────
 
@@ -32,7 +33,7 @@ export const getWorkflowStatusSchema = z.object({
 
 export type GetWorkflowStatusInput = z.infer<typeof getWorkflowStatusSchema>;
 
-const POLL_TIMEOUT_MS = 15_000; // fixed — never expose this to the LLM
+const POLL_TIMEOUT_MS = 25_000; // fixed — never expose this to the LLM. 25s saves ~39% round-trips on 7-min Revit jobs vs 15s.
 
 export interface GetWorkflowStatusOutput {
   status: "pending" | "running" | "success" | "failed" | "cancelled" | "error";
@@ -199,6 +200,9 @@ async function pollDaWorkItem(
 
   // ── Map DA status to our status ───────────────────────────────────────
   const daStatus = finalItem!.status;
+
+  // Job reached a terminal state — remove from session store (no longer resumable).
+  try { removeActiveJob(handle.workItemId); } catch { /* non-fatal */ }
 
   if (daStatus === "success") {
     const outputCount = handle.outputOssUrls.length;

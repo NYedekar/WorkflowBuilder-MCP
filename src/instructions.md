@@ -87,8 +87,8 @@ STEP 0 — ANALYSE DEPENDENCIES, THEN ROUTE (do this before calling any tool):
 5. No file, just an APS REST operation or info question?
    → execute_workflow for REST calls. Answer from knowledge for pure info.
    REST tip: pass all parameters (path, query, body) in the single 'args' field — auto-routed.
-   Example: execute_workflow(capability_id='BucketManagement', operation_id='create_bucket',
-            args={ bucketKey: 'my-bucket', policyKey: 'transient' })
+   Example: execute_workflow(capability_id="BucketManagement", operation_id="create_bucket",
+            args={"bucketKey": "my-bucket", "policyKey": "transient"})
 
 ── STANDARD FLOW ────────────────────────────────────────────────────────
 
@@ -159,18 +159,18 @@ SUPPORTED FORMATS — full object tree + properties:
 
 STANDARD MD EXTRACTION FLOW — execute these steps in order:
   Step 1 · Upload file (if not already in OSS) → get oss_url
-  Step 2 · execute_workflow(capability_id='aps:md.jobs', operation_id='start_translation_job', input_file_url=oss_url)
+  Step 2 · execute_workflow(capability_id="aps:md.jobs", operation_id="start_translation_job", input_file_url=oss_url)
            → returns urn. If asyncJob=true, poll fetch_manifest until status='success'.
-  Step 3 · execute_workflow(capability_id='aps:md.manifest', operation_id='fetch_manifest', args={urn})
+  Step 3 · execute_workflow(capability_id="aps:md.manifest", operation_id="fetch_manifest", args={"urn": "<urn>"})
            → confirms translation complete. DO NOT use GUIDs from this manifest for metadata calls.
-  Step 4 · execute_workflow(capability_id='aps:md.metadata', operation_id='list_model_views', args={urn})
+  Step 4 · execute_workflow(capability_id="aps:md.metadata", operation_id="list_model_views", args={"urn": "<urn>"})
            → returns correct modelGuids. ALWAYS use these GUIDs — manifest geometry GUIDs are different and will 404.
-  Step 5a · execute_workflow(capability_id='aps:md.metadata', operation_id='fetch_object_tree', args={urn, modelGuid})
+  Step 5a · execute_workflow(capability_id="aps:md.metadata", operation_id="fetch_object_tree", args={"urn": "<urn>", "modelGuid": "<guid>"})
             → entity/layer/component hierarchy.
-  Step 5b · execute_workflow(capability_id='aps:md.metadata', operation_id='query_specific_properties',
-            args={urn, modelGuid, query:{$prefix:['CategoryName']}})
+  Step 5b · execute_workflow(capability_id="aps:md.metadata", operation_id="query_specific_properties",
+            args={"urn": "<urn>", "modelGuid": "<guid>", "query": {"$prefix": ["CategoryName"]}})
             → filtered properties by category. PREFER this over fetch_all_properties to avoid 1MB limit.
-  Step 5c · execute_workflow(capability_id='aps:md.thumbnail', operation_id='fetch_thumbnail', args={urn})
+  Step 5c · execute_workflow(capability_id="aps:md.thumbnail", operation_id="fetch_thumbnail", args={"urn": "<urn>"})
             → PNG preview. Use get_download_link on the result.
 
 WHAT MD COVERS vs GAPS PER PRODUCT:

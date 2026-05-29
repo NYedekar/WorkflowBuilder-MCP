@@ -2,6 +2,7 @@ import { readFileSync, statSync, existsSync } from "fs";
 import { basename, extname } from "path";
 import { homedir } from "os";
 import { z } from "zod";
+import { getPersistedUpload, setPersistedUpload } from "../lib/session-store.js";
 
 // ── OSS upload cache ──────────────────────────────────────────────────────
 // Keyed by resolvedPath:mtime:bucketKey:objectKey so the same file isn't
@@ -136,6 +137,20 @@ export async function handleUploadFile(input: UploadFileInput): Promise<UploadFi
     };
   }
 
+  // ── OneDrive cloud-only detection (before generic existence check) ────────
+  // Files in ~/Library/CloudStorage/OneDrive* are cloud-only when not yet synced.
+  // !existsSync on a cloud-only file gives a confusing "not found" error — be specific.
+  const isOneDrivePath =
+    resolvedPath.includes("/Library/CloudStorage/OneDrive") ||
+    resolvedPath.includes("/Library/CloudStorage/One Drive");
+  if (isOneDrivePath && !existsSync(resolvedPath)) {
+    return {
+      status: "error",
+      error: `File '${filename}' is cloud-only in OneDrive — it has not been downloaded to this Mac yet.`,
+      hint: `Open Finder, navigate to the file, and click it once to sync it locally. Then retry.`,
+    };
+  }
+
   // ── File existence check ──────────────────────────────────────────────────
   if (!existsSync(resolvedPath)) {
     return {
@@ -157,8 +172,9 @@ export async function handleUploadFile(input: UploadFileInput): Promise<UploadFi
 
   // Key includes bucket+object overrides so explicit routing always gets a fresh upload.
   const cacheKey = `${resolvedPath}:${stat.mtimeMs}:${input.bucket_key ?? ""}:${input.object_key ?? ""}`;
-  const cachedUrl = getCachedOssUrl(cacheKey);
+  const cachedUrl = getCachedOssUrl(cacheKey) ?? getPersistedUpload(cacheKey);
   if (cachedUrl) {
+    setCachedOssUrl(cacheKey, cachedUrl); // warm in-memory cache from persisted hit
     return { status: "success", oss_url: cachedUrl, cached: true };
   }
 
@@ -240,8 +256,9 @@ export async function handleUploadFile(input: UploadFileInput): Promise<UploadFi
 
   const ossUrl = `oss://${bucketKey}/${objectKey}`;
 
-  // Cache the OSS URL so repeat calls for the same file skip the upload entirely.
+  // Cache in-memory and persist to disk so repeat calls skip the upload across restarts.
   setCachedOssUrl(cacheKey, ossUrl);
+  setPersistedUpload(cacheKey, ossUrl);
 
   let signedDownloadUrl: string | undefined;
   try {

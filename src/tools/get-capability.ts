@@ -1,5 +1,23 @@
 import { z } from "zod";
-import { searchCapabilities, findCapabilityById, type CapabilityRecord } from "../lib/registry-client.js";
+import { searchCapabilities, findCapabilityById, type CapabilityRecord, type OperationRecord } from "../lib/registry-client.js";
+
+// ── Verified ops (E2E tested) ─────────────────────────────────────────────
+// Key format: "capabilityId/operationId". Add here as ops are confirmed working.
+const VERIFIED_OPS = new Set([
+  "autocad:AutoCADPlotToPDF/plot-to-pdf",
+  "revit:RevitExtractor/extract-all-parameters",
+  "revit:RevitPDFExport/export-sheets-to-pdf",
+  "revit:RevitViewsPDFExport/export-views-to-pdf",
+  "aps:md.jobs/start_translation_job",
+  "aps:md.manifest/fetch_manifest",
+  "aps:md.metadata/list_model_views",
+  "aps:md.metadata/fetch_object_tree",
+  "aps:md.metadata/query_specific_properties",
+  "aps:md.thumbnail/fetch_thumbnail",
+  "aps:dm.oss_buckets/create_bucket",
+  "aps:dm.oss_buckets/list_buckets",
+  "acc:hub-admin.projects/list_projects",
+]);
 
 export const getCapabilitySchema = z.object({
   query: z
@@ -48,24 +66,18 @@ export interface GetCapabilityResult {
 interface CapabilitySummary {
   id: string;
   alias: string;
-  product: string;
   domain: string;
   engine: string;
-  risk: string;
   ioShape: string;
   description?: string;
-  // Engine-API execution info
-  activityConvention?: string;
-  // Operations
   operations: OperationSummary[];
-  total_operations: number;
 }
 
 interface OperationSummary {
   operationId: string;
-  displayName: string;
-  description: string;
   callable: boolean;
+  verified?: boolean;           // true = E2E tested and confirmed working
+  estimated_tokens?: string;    // rough token cost hint for execution plan
   // REST-specific
   httpMethod?: string;
   endpoint?: string;
@@ -101,40 +113,48 @@ export async function handleGetCapability(
   }
 
   const summaries: CapabilitySummary[] = caps.map((c) => {
-    // For Engine-API capabilities, surface the DA activity naming convention
     const isEngineApi = c.domain === "Engine-APIs";
-    const activityConvention = isEngineApi
-      ? `{YOUR_CLIENT_ID}.${c.alias}+prod`
-      : undefined;
-
     // For search results cap ops at 10; for exact ID lookups return all
     const isExact = !!input.capability_id && !input.query;
     const opsToShow = isExact ? c.operations : c.operations.slice(0, 10);
 
     const opSummaries: OperationSummary[] = opsToShow.map((o) => ({
       operationId: o.operationId,
-      displayName: o.displayName,
-      description: o.description ? o.description.slice(0, 120) : "",
       callable: o.callable !== false,
+      ...(VERIFIED_OPS.has(`${c.id}/${o.operationId}`) ? { verified: true } : {}),
+      estimated_tokens: estimateTokens(o, isEngineApi),
       httpMethod: o.httpMethod,
       endpoint: o.endpoint,
-      authScopes: o.authScopes,
+      ...(o.authScopes?.length ? { authScopes: o.authScopes } : {}),
     }));
 
     return {
       id: c.id,
       alias: c.alias,
-      product: c.product,
       domain: c.domain,
       engine: c.engine,
-      risk: c.risk,
       ioShape: c.ioShape,
       description: c.description ? c.description.slice(0, 160) : undefined,
-      activityConvention,
       operations: opSummaries,
-      total_operations: c.operations.length,
     };
   });
 
   return { count: summaries.length, capabilities: summaries };
+}
+
+// ── Token estimation ──────────────────────────────────────────────────────
+// Rough per-operation estimate shown in execution plan briefing (±40% accuracy).
+// Engine-API jobs dominate: N polls × ~200t + result. REST calls are one round-trip.
+
+function estimateTokens(op: OperationRecord, isEngineApi: boolean): string {
+  if (isEngineApi) {
+    // Revit: 25–40 polls × 200t + 1K result ≈ 6K–9K
+    // AutoCAD: 3–8 polls × 200t + 500t ≈ 1K–2K
+    const engine = (op.engine ?? "").toLowerCase();
+    if (engine.includes("revit")) return "~6,000–9,000t (includes polling)";
+    if (engine.includes("autocad")) return "~1,000–2,500t (includes polling)";
+    return "~2,000–8,000t (includes polling)";
+  }
+  // REST: single call — cost is mostly instructions overhead + response size
+  return "~300–1,000t (single call)";
 }
