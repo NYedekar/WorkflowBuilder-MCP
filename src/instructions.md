@@ -127,7 +127,14 @@ Step 3 — PRESENT EXECUTION PLAN (mandatory, before any upload or job submissio
 Step 4 — Execute using the pattern selected in STEP 0 (Cases A–E above).
          If your plan includes CASE B, D, or E (execute_workflow required), ensure it is
          loaded before submitting jobs — search "execute workflow" if not yet in context.
-Step 5 — TOKEN TRACKING (mandatory — never skip):
+Step 5 — OUTPUT RETRIEVAL:
+         Only call get_result on outputs the user explicitly asked for.
+         Skip metadata / manifest JSON outputs unless the user needs them — each unnecessary
+         get_result call adds ~50K tokens of context for a 2 MB file. When a job produces both
+         a data file (CSV, PDF, ZIP) and a companion JSON manifest, retrieve only the data file
+         unless the manifest was requested. Pass save_to=~/Downloads for all binary outputs.
+
+Step 6 — TOKEN TRACKING (mandatory — never skip):
 
          SINGLE-JOB session (one DA job or one REST call):
            • Pass model + estimated_input_tokens + estimated_output_tokens to the final get_result
@@ -222,6 +229,8 @@ WHAT MD COVERS vs GAPS PER PRODUCT:
                     ALWAYS read the next_action field — it overrides all other instructions.
                     After ~2 minutes, next_action will say CHECK IN WITH USER — obey it exactly.
                     This prevents Claude Desktop's session timeout from killing long-running jobs.
+                    MULTIPLE PENDING JOBS: call get_workflow_status on ALL pending handles
+                    simultaneously in one turn — do not poll them one at a time sequentially.
 • failed          → WorkItem failed. Check reportUrl for the DA execution log.
 • 3lo_required    → status="3lo_required". Call authenticate_aps_3lo() immediately — no confirmation needed.
                     It opens a browser login and stores the token. Once it returns success, immediately re-call
