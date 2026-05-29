@@ -24,6 +24,8 @@ import { getWorkflowStatusSchema, handleGetWorkflowStatus, } from "./tools/get-w
 import { getDownloadLinkSchema, handleGetDownloadLink, } from "./tools/get-download-link.js";
 import { saveToMacSchema, handleSaveToMac, } from "./tools/save-to-mac.js";
 import { renderModelSchema, handleRenderModel, } from "./tools/render-model.js";
+import { recordTokenUsageSchema, handleRecordTokenUsage, SERVER_SESSION_ID, } from "./tools/record-token-usage.js";
+import { getTokenUsageSchema, handleGetTokenUsage, } from "./tools/get-token-usage.js";
 // ─── Server setup ─────────────────────────────────────────────────────────
 const server = new Server({
     name: "mcp-workflow-builder",
@@ -71,7 +73,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     "callable=true → proceed. callable=false → DO NOT use that operation. " +
                     "AFTER all get_capability calls complete: output a brief execution plan to the user " +
                     "(task name, capability_id, operation_id, execution pattern) BEFORE calling upload_file, " +
-                    "process_file, or execute_workflow. Then proceed immediately without waiting.",
+                    "process_file, or execute_workflow. Then proceed immediately without waiting. " +
+                    "TOKEN TRACKING: immediately after presenting the execution plan, call record_token_usage " +
+                    "with your model ID and estimated tokens used so far in this session (planning phase). " +
+                    "Do not wait — call it as part of the same step, before any upload or job submission.",
                 inputSchema: zodToJsonSchema(getCapabilitySchema),
             },
             {
@@ -111,7 +116,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     "whenever get_workflow_status returns status=success with outputOssUrls. " +
                     "Call once per oss:// URL in outputOssUrls. " +
                     "Binary outputs (PDF, DWG, ZIP) are auto-saved to ~/Downloads — no save_to param needed. " +
-                    "For large text outputs (has_more=true), paginate by calling again with offset_chars=next_offset.",
+                    "For large text outputs (has_more=true), paginate by calling again with offset_chars=next_offset. " +
+                    "TOKEN TRACKING: after the LAST get_result call for a workflow (no more outputOssUrls to fetch), " +
+                    "immediately call record_token_usage with model, estimated tokens used during execution, " +
+                    "and the capability_id + operation_id of the completed workflow.",
                 inputSchema: zodToJsonSchema(getResultSchema),
             },
             {
@@ -126,7 +134,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: "get_download_link",
-                description: "Generate a clickable HTTPS download link for any file in APS OSS.",
+                description: "Generate a clickable HTTPS download link for any file in APS OSS. " +
+                    "TOKEN TRACKING: if this is the final step of a workflow (no get_result calls follow), " +
+                    "call record_token_usage immediately after with model, estimated tokens, and capability_id + operation_id.",
                 inputSchema: zodToJsonSchema(getDownloadLinkSchema),
             },
             {
@@ -143,6 +153,26 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 name: "render_model",
                 description: "Render an APS model visually — either as an interactive 3D viewer or as a thumbnail image.",
                 inputSchema: zodToJsonSchema(renderModelSchema),
+            },
+            {
+                name: "record_token_usage",
+                description: "Record the token consumption of this AI session to a persistent local log. " +
+                    "Call this after any significant tool use or at the end of a workflow to capture how many " +
+                    "prompt (input) and completion (output) tokens the AI client spent executing tasks through " +
+                    "this MCP server. Also records cache_read_tokens and cache_write_tokens when available. " +
+                    "Optionally link the record to a workflow_id or capability_id for per-workflow cost tracking. " +
+                    `Current session ID: ${SERVER_SESSION_ID}. ` +
+                    "Returns running session totals so you can see cumulative usage without querying the log.",
+                inputSchema: zodToJsonSchema(recordTokenUsageSchema),
+            },
+            {
+                name: "get_token_usage",
+                description: "Query the persistent token-usage log written by record_token_usage. " +
+                    "Returns a summary (total input/output/cache tokens, record count) plus breakdowns " +
+                    "by model and by workflow DAG, and a tail of recent raw records. " +
+                    "Supports filtering by date range (since/until), session_id, workflow_id, and model. " +
+                    "Use this to report cost, audit usage, or compare token spend across workflows.",
+                inputSchema: zodToJsonSchema(getTokenUsageSchema),
             },
         ],
     };
@@ -191,6 +221,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 break;
             case "render_model":
                 result = await handleRenderModel(renderModelSchema.parse(args));
+                break;
+            case "record_token_usage":
+                result = await handleRecordTokenUsage(recordTokenUsageSchema.parse(args));
+                break;
+            case "get_token_usage":
+                result = await handleGetTokenUsage(getTokenUsageSchema.parse(args));
                 break;
             default:
                 return {
