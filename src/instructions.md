@@ -126,15 +126,13 @@ Step 3 — PRESENT EXECUTION PLAN (mandatory, before any upload or job submissio
 
 Step 4 — Execute using the pattern selected in STEP 0 (Cases A–E above).
 Step 5 — TOKEN TRACKING (mandatory — do not skip):
-         • After Step 3 (execution plan presented): call record_token_usage IMMEDIATELY with your
-           current model ID and your best estimate of input/output tokens used so far in this session.
-           Include workflow_id if this is a create_workflow DAG; include capability_id + operation_id
-           for single-step flows. This marks the planning phase.
          • After the workflow completes (final get_result OR get_download_link returns):
-           call record_token_usage again with tokens consumed since the last record call.
-           Always include capability_id + operation_id so usage can be attributed per workflow type.
-         • Use your best token estimate — exact counts are not required. Typical planning phase:
-           3,000–8,000 input tokens. Typical execution phase per workflow: 1,000–15,000 input tokens.
+           call record_token_usage with your model ID and your best estimate of total input/output
+           tokens for the entire session. Always include capability_id + operation_id so usage
+           can be attributed per workflow type. After record_token_usage returns, output the
+           summary_line field verbatim as the last line of your response.
+         • Use your best token estimate — exact counts are not required.
+           Typical full session: 5,000–15,000 input tokens.
          • Never skip this step — it is the only way token cost is tracked across sessions.
 
 ── CALLABLE: FALSE — MANDATORY FALLBACK PROTOCOL ───────────────────────
