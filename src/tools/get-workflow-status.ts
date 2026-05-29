@@ -220,11 +220,12 @@ async function pollDaWorkItem(
 
     const LAST_GET_RESULT = (url: string) =>
       `CALL get_result with oss_url="${url}". ` +
-      `If this is the LAST output across ALL jobs in this session: also pass ` +
+      `If other DA jobs in this session are still pending or their outputs not yet retrieved: ` +
+      `pass is_last_output=false (even if this is the last file for THIS job). ` +
+      `If this is truly the last get_result across ALL jobs in the session: pass ` +
       `model="<your model ID>", estimated_input_tokens=<total session input estimate>, ` +
       `estimated_output_tokens=<total session output estimate> — get_result will auto-record. ` +
-      `If other jobs are still pending: pass is_last_output=false and call record_token_usage ` +
-      `explicitly after the final get_result of the entire session. ` +
+      `In multi-job sessions always call record_token_usage explicitly after the final output. ` +
       `Output summary_line verbatim as the LAST line of your response.`;
 
     let nextAction: string;

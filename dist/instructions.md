@@ -125,6 +125,8 @@ Step 3 — PRESENT EXECUTION PLAN (mandatory, before any upload or job submissio
          so the user can verify the right tool is being used before any file is uploaded.
 
 Step 4 — Execute using the pattern selected in STEP 0 (Cases A–E above).
+         If your plan includes CASE B, D, or E (execute_workflow required), ensure it is
+         loaded before submitting jobs — search "execute workflow" if not yet in context.
 Step 5 — TOKEN TRACKING (mandatory — never skip):
 
          SINGLE-JOB session (one DA job or one REST call):
