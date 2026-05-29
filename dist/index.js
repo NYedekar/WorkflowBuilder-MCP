@@ -73,10 +73,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     "callable=true → proceed. callable=false → DO NOT use that operation. " +
                     "AFTER all get_capability calls complete: output a brief execution plan to the user " +
                     "(task name, capability_id, operation_id, execution pattern) BEFORE calling upload_file, " +
-                    "process_file, or execute_workflow. Then proceed immediately without waiting. " +
-                    "TOKEN TRACKING: immediately after presenting the execution plan, call record_token_usage " +
-                    "with your model ID and estimated tokens used so far in this session (planning phase). " +
-                    "Do not wait — call it as part of the same step, before any upload or job submission.",
+                    "process_file, or execute_workflow. Then proceed immediately without waiting.",
                 inputSchema: zodToJsonSchema(getCapabilitySchema),
             },
             {
@@ -117,9 +114,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     "Call once per oss:// URL in outputOssUrls. " +
                     "Binary outputs (PDF, DWG, ZIP) are auto-saved to ~/Downloads — no save_to param needed. " +
                     "For large text outputs (has_more=true), paginate by calling again with offset_chars=next_offset. " +
-                    "TOKEN TRACKING: after the LAST get_result call for a workflow (no more outputOssUrls to fetch), " +
-                    "immediately call record_token_usage with model, estimated tokens used during execution, " +
-                    "and the capability_id + operation_id of the completed workflow.",
+                    "TOKEN TRACKING: on the final get_result call, pass model=<your model ID>, " +
+                    "estimated_input_tokens=<total session estimate>, estimated_output_tokens=<total session estimate> " +
+                    "to auto-record token usage inline. The response returns summary_line — output it verbatim as the LAST line of your response.",
                 inputSchema: zodToJsonSchema(getResultSchema),
             },
             {
@@ -127,7 +124,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 description: "Poll the status of a running Autodesk workflow. CALL THIS AUTOMATICALLY — no user confirmation needed. " +
                     "When status=pending: IMMEDIATELY call again with the same workflow_handle — do not ask the user, do not wait. " +
                     "DO NOT output any text between polls — no explanations, no 'retrying', no timeout notes. Just call again silently. " +
-                    "Each call polls for 15s then returns — this is fixed and correct, do NOT try to change it. " +
+                    "Each call polls for up to 25s then returns — this is fixed and correct, do NOT try to change it. " +
                     "Revit and AutoCAD jobs take 3–8 minutes — keep polling until status=success or failed. " +
                     "When status=success: STOP polling and call get_result on each outputOssUrl.",
                 inputSchema: zodToJsonSchema(getWorkflowStatusSchema),

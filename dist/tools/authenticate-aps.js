@@ -3,6 +3,7 @@ import { getTwoLeggedToken, APSAuthError } from "../auth/aps-token-client.js";
 import { loadSecret, storeSecret } from "../auth/keychain.js"; // synchronous
 import { setCachedToken } from "../auth/token-cache.js";
 import { DEFAULT_SCOPES } from "../auth/credential-resolver.js";
+import { getSessionRecoverySummary } from "../lib/session-store.js";
 export const authenticateApsSchema = z.object({
     store_to_keychain: z
         .boolean()
@@ -50,12 +51,14 @@ export async function handleAuthenticateAps(input) {
         if (input.store_to_keychain) {
             keychainStored = storeSecret(clientId, clientSecret);
         }
+        const recovery = getSessionRecoverySummary();
         return {
             status: "authenticated",
             client_id: clientId,
             scopes_granted: scopes,
             access_token_expires_in: token.expires_in,
             keychain_stored: keychainStored,
+            ...(recovery ? { session_recovery: recovery.summary, _resume_handles: recovery.handles } : {}),
         };
     }
     catch (err) {

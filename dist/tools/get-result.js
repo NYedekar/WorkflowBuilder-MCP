@@ -4,6 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import { resolveCredential, DEFAULT_SCOPES } from "../auth/credential-resolver.js";
 import { DAError, getSignedS3DownloadUrl } from "../lib/da-client.js";
+import { handleRecordTokenUsage } from "./record-token-usage.js";
 export const getResultSchema = z.object({
     oss_url: z
         .string()
@@ -34,6 +35,30 @@ export const getResultSchema = z.object({
         .describe("Force UTF-8 text decoding even if content-type and sniffing suggest binary. " +
         "Use when you know the file is text (e.g. a .json output stored with application/octet-stream) " +
         "and the automatic detection is wrong."),
+    is_last_output: z
+        .boolean()
+        .optional()
+        .default(true)
+        .describe("Set to false when more get_result calls follow for this workflow (multi-output jobs). " +
+        "Default true: token usage is auto-recorded when model + estimated tokens are also provided."),
+    model: z
+        .string()
+        .optional()
+        .describe("Your model ID (e.g. 'claude-sonnet-4-6'). Provide with estimated_input_tokens and " +
+        "estimated_output_tokens when is_last_output=true to auto-record token usage inline — " +
+        "no separate record_token_usage call needed."),
+    estimated_input_tokens: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe("Estimated total session input tokens. Provide when is_last_output=true."),
+    estimated_output_tokens: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe("Estimated total session output tokens. Provide when is_last_output=true."),
     save_to: z
         .string()
         .optional()
@@ -124,12 +149,25 @@ function resolveSavePath(folder, filename) {
     fs.mkdirSync(resolved, { recursive: true });
     return path.join(resolved, filename);
 }
-const TOKEN_TRACKING_DIRECTIVE = "WORKFLOW COMPLETE — CALL record_token_usage NOW. " +
-    "Required fields: model (your model ID, e.g. 'claude-sonnet-4-6'), " +
-    "input_tokens (estimated prompt tokens used since last record_token_usage call), " +
-    "output_tokens (estimated completion tokens). " +
-    "Optional but preferred: capability_id and operation_id from this workflow. " +
-    "Do not skip this step — call it immediately before presenting results to the user.";
+// Auto-records token usage inline when the LLM passes model + token estimates to get_result.
+// Returns summary_line on success, undefined if params missing or recording fails.
+async function tryAutoRecordTokens(input) {
+    if (input.is_last_output === false)
+        return undefined;
+    if (!input.model || !input.estimated_input_tokens || !input.estimated_output_tokens)
+        return undefined;
+    try {
+        const result = await handleRecordTokenUsage({
+            model: input.model,
+            input_tokens: input.estimated_input_tokens,
+            output_tokens: input.estimated_output_tokens,
+        });
+        return result.summary_line;
+    }
+    catch {
+        return undefined;
+    }
+}
 // ── Handler ───────────────────────────────────────────────────────────────
 export async function handleGetResult(input) {
     const withoutScheme = input.oss_url.replace(/^oss:\/\//, "");
@@ -238,6 +276,7 @@ export async function handleGetResult(input) {
                 detected = "text";
         }
         if (detected === "binary") {
+            const summaryLine = await tryAutoRecordTokens(input);
             return {
                 status: "success",
                 oss_url: input.oss_url,
@@ -248,13 +287,15 @@ export async function handleGetResult(input) {
                 content: `[Binary file — ${fullBytes.byteLength.toLocaleString()} bytes. Saved to: ${savedTo}]`,
                 saved_to: savedTo,
                 truncated: false,
-                _token_tracking: TOKEN_TRACKING_DIRECTIVE,
+                summary_line: summaryLine,
+                next_action: summaryLine ? `Output the summary_line field verbatim as the LAST line of your response.` : undefined,
             };
         }
         // Text: extract content window directly from in-memory bytes.
         const raw = new TextDecoder("utf-8", { fatal: false }).decode(fullBytes);
         const windowText = raw.slice(input.offset_chars, input.offset_chars + input.max_chars);
         const hasMoreText = input.offset_chars + windowText.length < raw.length;
+        const summaryLineText = !hasMoreText ? await tryAutoRecordTokens(input) : undefined;
         return {
             status: "success",
             oss_url: input.oss_url,
@@ -269,7 +310,8 @@ export async function handleGetResult(input) {
             truncated: hasMoreText,
             binary: false,
             saved_to: savedTo,
-            _token_tracking: hasMoreText ? undefined : TOKEN_TRACKING_DIRECTIVE,
+            summary_line: summaryLineText,
+            next_action: summaryLineText ? `Output the summary_line field verbatim as the LAST line of your response.` : undefined,
         };
     }
     // ── No save_to: range fetch for detection + text content ──────────────────
@@ -366,6 +408,7 @@ export async function handleGetResult(input) {
             ? `[Binary file — ${sizeBytes.toLocaleString()} bytes. Auto-saved to: ${savedTo}]`
             : `[Binary file — ${sizeBytes.toLocaleString()} bytes. ` +
                 `Could not auto-save. Pass save_to="~/Downloads" to download it.]`;
+        const summaryLineBin = await tryAutoRecordTokens(input);
         return {
             status: "success",
             oss_url: input.oss_url,
@@ -376,7 +419,8 @@ export async function handleGetResult(input) {
             content: binaryContent,
             saved_to: savedTo,
             truncated: false,
-            _token_tracking: TOKEN_TRACKING_DIRECTIVE,
+            summary_line: summaryLineBin,
+            next_action: summaryLineBin ? `Output the summary_line field verbatim as the LAST line of your response.` : undefined,
         };
     }
     // ── Text: decode the fetched slice, extract the content window ────────────
@@ -385,6 +429,7 @@ export async function handleGetResult(input) {
     const windowByteLength = new TextEncoder().encode(window).byteLength;
     const totalChars = totalBytes ?? sizeBytes;
     const hasMore = startByte + windowByteLength < totalChars;
+    const summaryLineTxt = !hasMore ? await tryAutoRecordTokens(input) : undefined;
     return {
         status: "success",
         oss_url: input.oss_url,
@@ -399,6 +444,7 @@ export async function handleGetResult(input) {
         truncated: hasMore,
         binary: false,
         saved_to: undefined,
-        _token_tracking: hasMore ? undefined : TOKEN_TRACKING_DIRECTIVE,
+        summary_line: summaryLineTxt,
+        next_action: summaryLineTxt ? `Output the summary_line field verbatim as the LAST line of your response.` : undefined,
     };
 }

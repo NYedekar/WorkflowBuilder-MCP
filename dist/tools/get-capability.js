@@ -1,5 +1,22 @@
 import { z } from "zod";
 import { searchCapabilities, findCapabilityById } from "../lib/registry-client.js";
+// ── Verified ops (E2E tested) ─────────────────────────────────────────────
+// Key format: "capabilityId/operationId". Add here as ops are confirmed working.
+const VERIFIED_OPS = new Set([
+    "autocad:AutoCADPlotToPDF/plot-all-sheets-to-pdf", // E2E confirmed (DWG→PDF smoke test)
+    "revit:RevitExtractor/extract-all-parameters",
+    "revit:RevitPDFExport/export-sheets-to-pdf",
+    "revit:RevitPDFExport/export-views-to-pdf", // same capability as sheets, not RevitViewsPDFExport
+    "aps:md.jobs/start_translation_job",
+    "aps:md.manifest/fetch_manifest",
+    "aps:md.metadata/list_model_views",
+    "aps:md.metadata/fetch_object_tree",
+    "aps:md.metadata/query_specific_properties",
+    "aps:md.thumbnail/fetch_thumbnail",
+    "aps:dm.oss_buckets/create_bucket",
+    "aps:dm.oss_buckets/list_buckets",
+    "acc:hub-admin.projects/acc.admin_list_projects", // actual operationId confirmed in registry
+]);
 export const getCapabilitySchema = z.object({
     query: z
         .string()
@@ -54,35 +71,27 @@ export async function handleGetCapability(input) {
         });
     }
     const summaries = caps.map((c) => {
-        // For Engine-API capabilities, surface the DA activity naming convention
         const isEngineApi = c.domain === "Engine-APIs";
-        const activityConvention = isEngineApi
-            ? `{YOUR_CLIENT_ID}.${c.alias}+prod`
-            : undefined;
         // For search results cap ops at 10; for exact ID lookups return all
         const isExact = !!input.capability_id && !input.query;
         const opsToShow = isExact ? c.operations : c.operations.slice(0, 10);
         const opSummaries = opsToShow.map((o) => ({
             operationId: o.operationId,
             displayName: o.displayName,
-            description: o.description ? o.description.slice(0, 120) : "",
             callable: o.callable !== false,
+            ...(VERIFIED_OPS.has(`${c.id}/${o.operationId}`) ? { verified: true } : {}),
             httpMethod: o.httpMethod,
             endpoint: o.endpoint,
-            authScopes: o.authScopes,
+            ...(o.authScopes?.length ? { authScopes: o.authScopes } : {}),
         }));
         return {
             id: c.id,
             alias: c.alias,
-            product: c.product,
             domain: c.domain,
             engine: c.engine,
-            risk: c.risk,
             ioShape: c.ioShape,
             description: c.description ? c.description.slice(0, 160) : undefined,
-            activityConvention,
             operations: opSummaries,
-            total_operations: c.operations.length,
         };
     });
     return { count: summaries.length, capabilities: summaries };

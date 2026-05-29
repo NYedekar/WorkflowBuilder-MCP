@@ -89,6 +89,9 @@ export async function handleRecordTokenUsage(input) {
     fs.appendFileSync(logPath, JSON.stringify(record) + "\n", "utf-8");
     sessionInputTotal += input.input_tokens;
     sessionOutputTotal += input.output_tokens;
+    const total = sessionInputTotal + sessionOutputTotal;
+    const summaryLine = `Session token usage: ${total.toLocaleString()} tokens ` +
+        `(${sessionInputTotal.toLocaleString()} input · ${sessionOutputTotal.toLocaleString()} output) — ${input.model}`;
     return {
         status: "recorded",
         record_id,
@@ -96,7 +99,8 @@ export async function handleRecordTokenUsage(input) {
         running_totals: {
             input_tokens: sessionInputTotal,
             output_tokens: sessionOutputTotal,
-            total_tokens: sessionInputTotal + sessionOutputTotal,
+            total_tokens: total,
         },
+        summary_line: summaryLine,
     };
 }

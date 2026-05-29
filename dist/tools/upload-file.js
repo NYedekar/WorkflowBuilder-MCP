@@ -2,6 +2,7 @@ import { readFileSync, statSync, existsSync } from "fs";
 import { basename, extname } from "path";
 import { homedir } from "os";
 import { z } from "zod";
+import { getPersistedUpload, setPersistedUpload } from "../lib/session-store.js";
 const ossUploadCache = new Map();
 const CACHE_TTL_MS = 30 * 60 * 1000;
 function getCachedOssUrl(key) {
@@ -18,7 +19,7 @@ function setCachedOssUrl(key, ossUrl) {
     ossUploadCache.set(key, { ossUrl, cachedAt: Date.now() });
 }
 import { resolveCredential } from "../auth/credential-resolver.js";
-import { getSignedS3UploadUrl, uploadToS3, finalizeS3Upload, getSignedDownloadUrl, DAError, } from "../lib/da-client.js";
+import { getSignedS3UploadUrl, uploadToS3, finalizeS3Upload, DAError, } from "../lib/da-client.js";
 // ── Schema ────────────────────────────────────────────────────────────────
 export const uploadFileSchema = z.object({
     file_path: z
@@ -89,8 +90,17 @@ export async function handleUploadFile(input) {
                 `then call upload_file again with that path.`,
         };
     }
-    // ── File existence check ──────────────────────────────────────────────────
-    if (!existsSync(resolvedPath)) {
+    // ── File existence check (with OneDrive cloud-only specialisation) ────────
+    const fileExists = existsSync(resolvedPath);
+    if (!fileExists) {
+        const isOneDrivePath = resolvedPath.includes("/Library/CloudStorage/OneDrive");
+        if (isOneDrivePath) {
+            return {
+                status: "error",
+                error: `File '${filename}' is cloud-only in OneDrive — it has not been downloaded to this Mac yet.`,
+                hint: `Open Finder, navigate to the file, and click it once to sync it locally. Then retry.`,
+            };
+        }
         return {
             status: "error",
             error: `File not found: '${resolvedPath}'`,
@@ -107,8 +117,9 @@ export async function handleUploadFile(input) {
     }
     // Key includes bucket+object overrides so explicit routing always gets a fresh upload.
     const cacheKey = `${resolvedPath}:${stat.mtimeMs}:${input.bucket_key ?? ""}:${input.object_key ?? ""}`;
-    const cachedUrl = getCachedOssUrl(cacheKey);
+    const cachedUrl = getCachedOssUrl(cacheKey) ?? getPersistedUpload(cacheKey);
     if (cachedUrl) {
+        setCachedOssUrl(cacheKey, cachedUrl); // warm in-memory cache from persisted hit
         return { status: "success", oss_url: cachedUrl, cached: true };
     }
     // ── APS auth ──────────────────────────────────────────────────────────────
@@ -180,19 +191,12 @@ export async function handleUploadFile(input) {
         return { status: "error", error: `Finalize upload failed: ${String(err)}` };
     }
     const ossUrl = `oss://${bucketKey}/${objectKey}`;
-    // Cache the OSS URL so repeat calls for the same file skip the upload entirely.
+    // Cache in-memory and persist to disk so repeat calls skip the upload across restarts.
     setCachedOssUrl(cacheKey, ossUrl);
-    let signedDownloadUrl;
-    try {
-        signedDownloadUrl = await getSignedDownloadUrl(cred.access_token, ossUrl);
-    }
-    catch {
-        // Non-fatal
-    }
+    setPersistedUpload(cacheKey, ossUrl);
     return {
         status: "success",
         oss_url: ossUrl,
-        signed_download_url: signedDownloadUrl,
         bucket_key: bucketKey,
         object_key: objectKey,
         file_size_bytes: fileSizeBytes,

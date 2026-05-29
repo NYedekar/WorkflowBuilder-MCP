@@ -259,6 +259,7 @@ export async function handleRenderModel(input) {
             hint: "Check that ~/Downloads is writable.",
         };
     }
+    const expiresAt = new Date(Date.now() + viewerTtl * 1000).toISOString();
     try {
         await execAsync(`open "${filePath}"`);
     }
@@ -268,17 +269,19 @@ export async function handleRenderModel(input) {
             status: "success",
             urn,
             file_path: filePath,
+            expires_at: expiresAt,
             message: `Viewer saved to ${filePath}. ` +
-                `Could not auto-open (${String(err)}). Double-click the file to open it in your browser.`,
+                `Could not auto-open (${String(err)}). Double-click the file to open it in your browser. ` +
+                `Token expires at ${expiresAt} — call render_model again to regenerate.`,
         };
     }
     return {
         status: "success",
         urn,
         file_path: filePath,
+        expires_at: expiresAt,
         message: `Viewer opened in your default browser. ` +
-            `File saved at: ${filePath} — you can bookmark or share it. ` +
-            `The token embedded in this file expires in ~${Math.floor(viewerTtl / 60)} minutes; ` +
-            `call render_model again to regenerate a fresh copy.`,
+            `File saved at: ${filePath}. ` +
+            `Token expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — call render_model again to regenerate a fresh copy.`,
     };
 }

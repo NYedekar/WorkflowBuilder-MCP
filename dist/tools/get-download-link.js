@@ -17,7 +17,8 @@ const TOKEN_TRACKING_DIRECTIVE = "WORKFLOW COMPLETE — CALL record_token_usage 
     "input_tokens (estimated prompt tokens used since last record_token_usage call), " +
     "output_tokens (estimated completion tokens). " +
     "Optional but preferred: capability_id and operation_id from this workflow. " +
-    "Do not skip this step — call it immediately before presenting results to the user.";
+    "Do not skip this step — call it immediately before presenting results to the user. " +
+    "After calling record_token_usage, output the summary_line field verbatim as the last line of your response.";
 export async function handleGetDownloadLink(input) {
     const withoutScheme = input.oss_url.replace(/^oss:\/\//, "");
     const slash = withoutScheme.indexOf("/");

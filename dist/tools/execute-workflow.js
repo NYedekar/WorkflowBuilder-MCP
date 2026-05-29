@@ -4,6 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import { fileURLToPath } from "url";
 import { persistFinalizeQueue } from "../lib/finalize-store.js";
+import { saveActiveJob } from "../lib/session-store.js";
 import { resolveCredential, resolve3LOCredential, DEFAULT_SCOPES } from "../auth/credential-resolver.js";
 import { findCapabilityById, findOperationByGlobalId } from "../lib/registry-client.js";
 import { getActivity, createActivity, createActivityAlias, getNickname, ensureBucket, uploadJsonToOss, submitWorkItem, getSignedDownloadUrl, getSignedS3UploadUrl, uploadToS3, finalizeS3Upload, DAError, } from "../lib/da-client.js";
@@ -28,24 +29,22 @@ export const executeWorkflowSchema = z.object({
         "Example: { \"bucketKey\": \"my-bucket\", \"policyKey\": \"transient\" } " +
         "for create_bucket — bucketKey fills {bucketKey} in the path, policyKey goes in the body. " +
         "Tip: pass nested objects for body fields — the tool serialises them as JSON automatically. " +
+        "For POST endpoints with both query-string and body params, use legacy query_params for query-string args. " +
         "Ignored for Engine-API capabilities."),
     path_params: z
         .record(z.string())
         .optional()
         .default({})
-        .describe("[Deprecated — prefer args] Path parameter substitutions for REST endpoints. " +
-        "Still accepted; merged with args (args takes precedence on key conflicts)."),
+        .describe("Deprecated. Use args instead."),
     query_params: z
         .record(z.string())
         .optional()
         .default({})
-        .describe("[Deprecated — prefer args] Query string parameters appended to the REST URL. " +
-        "Still accepted; merged with args (args takes precedence on key conflicts)."),
+        .describe("Deprecated. Use args instead. For POST endpoints with both query and body params, pass query-string args here."),
     body: z
         .record(z.unknown())
         .optional()
-        .describe("[Deprecated — prefer args] Request body for POST / PUT / PATCH REST operations. " +
-        "Still accepted; merged with args (args takes precedence on key conflicts)."),
+        .describe("Deprecated. Use args instead."),
     bearer_token: z
         .string()
         .optional()
@@ -740,6 +739,11 @@ async function executeEngineApi(cap, op, input, t0) {
     // Persist the finalize queue to disk so it survives connection drops and
     // LLM handle reconstruction (which may zero out s3FinalizeQueue).
     persistFinalizeQueue(workItemId, s3FinalizeQueue);
+    // Persist active job so it can be resumed after a server restart (S3-B).
+    try {
+        saveActiveJob({ workItemId, outputOssUrls, submittedAt: Date.now(), capability_id: cap.id, operation_id: op.operationId });
+    }
+    catch { /* non-fatal */ }
     return {
         status: "pending",
         mode: "engine_api",
@@ -770,7 +774,11 @@ function routeArgs(args, legacyPath, legacyQuery, legacyBody, endpoint, method) 
             bodyOverrides[key] = value;
         }
         else {
-            queryOverrides[key] = String(value);
+            // Serialize non-primitive values to JSON — String() on objects produces "[object Object]"
+            queryOverrides[key] =
+                typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+                    ? String(value)
+                    : JSON.stringify(value);
         }
     }
     const resolvedQueryParams = { ...legacyQuery, ...queryOverrides };

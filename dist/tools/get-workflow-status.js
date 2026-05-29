@@ -2,6 +2,7 @@ import { z } from "zod";
 import { resolveCredential } from "../auth/credential-resolver.js";
 import { pollWorkItem, finalizeS3Upload } from "../lib/da-client.js";
 import { loadFinalizeQueue, cleanFinalizeQueue } from "../lib/finalize-store.js";
+import { removeActiveJob } from "../lib/session-store.js";
 // ── Schema ────────────────────────────────────────────────────────────────
 const s3FinalizeEntrySchema = z.object({
     bucketKey: z.string(),
@@ -22,7 +23,10 @@ export const getWorkflowStatusSchema = z.object({
     // timeout_ms is intentionally not exposed to the LLM — 15s is always correct.
     // Exposing it caused the LLM to pass 30–55s on "long-looking" jobs, making polls feel like stalls.
 });
-const POLL_TIMEOUT_MS = 15_000; // fixed — never expose this to the LLM
+// Fixed — never expose to the LLM. 25s deadline saves ~39% round-trips on 7-min Revit jobs vs 15s (normal network).
+// Note: fetchWithTimeout uses maxRetries=2 by default, so a single iteration can overrun to ~36s in worst case.
+// Worst-case get_workflow_status duration: ~36s (poll) + 12s (finalize) = ~48s — within MCP 60s transport limit.
+const POLL_TIMEOUT_MS = 25_000;
 // ── Handler ───────────────────────────────────────────────────────────────
 const DA_SCOPES = [
     "code:all",
@@ -153,13 +157,40 @@ async function pollDaWorkItem(token, handle, timeoutMs, t0) {
         cleanFinalizeQueue(handle.workItemId);
     // ── Map DA status to our status ───────────────────────────────────────
     const daStatus = finalItem.status;
+    // Job reached a terminal state — remove from session store (no longer resumable).
+    try {
+        removeActiveJob(handle.workItemId);
+    }
+    catch { /* non-fatal */ }
     if (daStatus === "success") {
-        const outputCount = handle.outputOssUrls.length;
+        const urls = handle.outputOssUrls;
+        const outputCount = urls.length;
+        // Token tracking is auto-recorded inside get_result when model + token estimates are passed.
+        // Zero-output jobs have no get_result call — instruct record_token_usage directly.
+        const TOKEN_SUFFIX = `CALL record_token_usage with model=<your model ID>, ` +
+            `input_tokens=<estimated total session input>, output_tokens=<estimated total session output>. ` +
+            `Then output the summary_line field verbatim as the LAST line of your response.`;
+        const LAST_GET_RESULT = (url) => `CALL get_result with oss_url="${url}", ` +
+            `model="<your model ID, e.g. claude-sonnet-4-6>", ` +
+            `estimated_input_tokens=<your best estimate of total session input tokens>, ` +
+            `estimated_output_tokens=<your best estimate of total session output tokens>. ` +
+            `Then output the summary_line from the response verbatim as the LAST line of your response.`;
+        let nextAction;
+        if (outputCount === 0) {
+            nextAction = `STOP POLLING. Job completed with no output files. ${TOKEN_SUFFIX}`;
+        }
+        else if (outputCount === 1) {
+            nextAction = `STOP POLLING. ${LAST_GET_RESULT(urls[0])}`;
+        }
+        else {
+            const intermediate = urls.slice(0, -1)
+                .map(u => `CALL get_result for ${u} with is_last_output=false`)
+                .join(". Then ");
+            nextAction = `STOP POLLING. ${intermediate}. Then ${LAST_GET_RESULT(urls[urls.length - 1])}`;
+        }
         return {
             status: "success",
-            next_action: outputCount > 0
-                ? `STOP POLLING. CALL get_result NOW on each of the ${outputCount} outputOssUrls. Do not wait or ask the user. Call get_result for each oss:// URL in outputOssUrls.`
-                : "STOP POLLING. Job completed with no output files.",
+            next_action: nextAction,
             workItemId: handle.workItemId,
             outputOssUrls: handle.outputOssUrls,
             reportUrl: finalItem.reportUrl,
