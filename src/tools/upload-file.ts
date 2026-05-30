@@ -372,8 +372,10 @@ async function handleUrlUpload(input: UploadFileInput): Promise<UploadFileResult
   let fileBuffer: Buffer;
   let fileSizeBytes: number;
   try {
+    // 50s — must stay under the MCP stdio transport ~60s kill deadline.
+    // Large files (>50MB) may time out; the user should save locally and use file_path instead.
     const fetchController = new AbortController();
-    const fetchTimer = setTimeout(() => fetchController.abort(), 120_000); // 2 min max download
+    const fetchTimer = setTimeout(() => fetchController.abort(), 50_000);
     let res: Response;
     try {
       res = await fetch(fileUrl, { signal: fetchController.signal });
@@ -387,6 +389,32 @@ async function handleUrlUpload(input: UploadFileInput): Promise<UploadFileResult
         hint: "Check the URL is publicly accessible and the sharing link has not expired.",
       };
     }
+
+    // OneDrive sharing links often return an HTML preview page instead of raw file bytes.
+    // If the response is HTML, retry with ?download=1 appended (SharePoint direct-download trick).
+    const contentTypeHdr = res.headers.get("content-type") ?? "";
+    if (contentTypeHdr.includes("text/html")) {
+      const downloadUrl = fileUrl.includes("?") ? `${fileUrl}&download=1` : `${fileUrl}?download=1`;
+      const retryController = new AbortController();
+      const retryTimer = setTimeout(() => retryController.abort(), 50_000);
+      let retryRes: Response;
+      try {
+        retryRes = await fetch(downloadUrl, { signal: retryController.signal });
+      } finally {
+        clearTimeout(retryTimer);
+      }
+      if (!retryRes.ok || (retryRes.headers.get("content-type") ?? "").includes("text/html")) {
+        return {
+          status: "error",
+          error: `URL returned an HTML page instead of a file. OneDrive sharing links require a direct download URL.`,
+          hint:
+            `Try appending '?download=1' to the URL, or use "Copy direct link" / "Download" in OneDrive ` +
+            `to get a URL that serves the file directly. For org-only files, save locally first and use file_path.`,
+        };
+      }
+      res = retryRes;
+    }
+
     const ab = await res.arrayBuffer();
     fileBuffer = Buffer.from(ab);
     fileSizeBytes = fileBuffer.byteLength;

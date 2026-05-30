@@ -194,7 +194,7 @@ async function pollSingleHandle(token, handle, timeoutMs, t0) {
     if (daStatus === "cancelled") {
         return {
             status: "cancelled",
-            overall_status: "error",
+            overall_status: "cancelled",
             next_action: "STOP POLLING. Job was cancelled. Do not call get_result.",
             workItemId: handle.workItemId,
             reportUrl: finalItem.reportUrl,
@@ -218,10 +218,12 @@ async function pollSingleHandle(token, handle, timeoutMs, t0) {
 // Completed output URLs are accumulated in the batch handle across polling rounds.
 async function pollBatchHandles(token, batch, timeoutMs, t0) {
     const firstPolledAt = batch.first_polled_at ?? t0;
-    const elapsedMs = Date.now() - firstPolledAt;
     const { pending_handles, completed_oss_urls } = batch;
     // Fan out: poll all pending handles simultaneously
     const results = await Promise.allSettled(pending_handles.map((h) => pollSingleHandle(token, h, timeoutMs, t0)));
+    // Compute elapsed AFTER fan-out so check-in fires at the right wall-clock time.
+    // Computing it before Promise.allSettled would undercount by up to POLL_TIMEOUT_MS (25s).
+    const elapsedMs = Date.now() - firstPolledAt;
     // Partition results
     const newPendingHandles = [];
     const newCompletedUrls = [...completed_oss_urls];

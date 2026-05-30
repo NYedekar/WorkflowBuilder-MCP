@@ -65,7 +65,7 @@ export interface JobResult {
 
 export interface GetWorkflowStatusOutput {
   // Multi-handle fields
-  overall_status?: "pending" | "success" | "failed" | "mixed" | "error";
+  overall_status?: "pending" | "success" | "failed" | "cancelled" | "mixed" | "error";
   jobs?: JobResult[];         // one entry per handle — present for multi-handle calls
 
   // Legacy single-handle fields (always populated for backward compat)
@@ -268,7 +268,7 @@ async function pollSingleHandle(
   if (daStatus === "cancelled") {
     return {
       status: "cancelled",
-      overall_status: "error",
+      overall_status: "cancelled",
       next_action: "STOP POLLING. Job was cancelled. Do not call get_result.",
       workItemId: handle.workItemId,
       reportUrl: finalItem!.reportUrl,
@@ -300,13 +300,16 @@ async function pollBatchHandles(
   t0: number
 ): Promise<GetWorkflowStatusOutput> {
   const firstPolledAt = batch.first_polled_at ?? t0;
-  const elapsedMs = Date.now() - firstPolledAt;
   const { pending_handles, completed_oss_urls } = batch;
 
   // Fan out: poll all pending handles simultaneously
   const results = await Promise.allSettled(
     pending_handles.map((h) => pollSingleHandle(token, h, timeoutMs, t0))
   );
+
+  // Compute elapsed AFTER fan-out so check-in fires at the right wall-clock time.
+  // Computing it before Promise.allSettled would undercount by up to POLL_TIMEOUT_MS (25s).
+  const elapsedMs = Date.now() - firstPolledAt;
 
   // Partition results
   const newPendingHandles: WorkflowHandle[] = [];

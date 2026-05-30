@@ -28,7 +28,9 @@ async function fetchWithTimeout(
       ? AbortSignal.any([controller.signal, parentSignal])
       : controller.signal;
     try {
-      recordApiCall(); // count every outbound APS/S3 request toward RPM limit
+      // Count only APS API calls (developer.api.autodesk.com), not S3 PUT/GET calls.
+      // APS 150 RPM limit applies to the APS platform — S3 has separate, much higher limits.
+      if (url.includes("developer.api.autodesk.com")) recordApiCall();
       return await fetch(url, { ...options, signal });
     } catch (err) {
       clearTimeout(timer);
