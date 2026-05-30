@@ -82,11 +82,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: "process_file",
-                description: "Process a local Autodesk file on this Mac. The MCP server runs as a LOCAL process and reads " +
+                description: "BEFORE CALLING: count how many intents target this exact file_path. " +
+                    "If 2 or more intents target the same file_path → STOP. Do NOT call process_file. " +
+                    "Call upload_file(file_path) once, then execute_workflow in parallel for each intent (CASE B). " +
+                    "process_file re-uploads the file on every call — calling it twice on the same file wastes bandwidth and time. " +
+                    "ONLY call process_file when exactly ONE intent targets this file_path. " +
+                    "Process a local Autodesk file on this Mac. The MCP server runs as a LOCAL process and reads " +
                     "Mac filesystem paths directly (~/Downloads/, /Users/..., OneDrive paths). " +
                     "DO NOT say you cannot access a local path — pass it straight to this tool. " +
-                    "Use ONLY when exactly ONE intent targets this file path. " +
-                    "For 2+ intents on the same file: use upload_file → parallel execute_workflow (CASE B) instead — process_file re-uploads on every call. " +
                     "Fast path: auto-selects capability, uploads to APS, runs the job, returns results. " +
                     "On pending response: immediately chains to get_workflow_status → get_result → get_download_link — " +
                     "no user confirmation needed for any step.",
