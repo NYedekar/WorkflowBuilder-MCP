@@ -272,7 +272,10 @@ export async function pollWorkItem(
 }
 
 // Batch status check for multiple work items in one HTTP call.
-// DA v3 supports POST /v3/workitems/status with body { ids: string[] }.
+// Endpoint: POST /da/{region}/v3/workitems/status, body: { ids: string[] }
+// APS DA v3 API reference: https://aps.autodesk.com/en/docs/design-automation/v3/reference/http/design-automation-workitems-status-POST/
+// If this endpoint returns 404 (not supported in all DA regions/tiers), batch-poller.ts
+// catches the error and falls back silently to the individual-poll path.
 // Used by batch-poller.ts to stay within APS 150 RPM limit at scale.
 export async function getBatchWorkItemStatus(
   token: string,

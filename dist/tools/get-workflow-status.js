@@ -3,6 +3,7 @@ import { resolveCredential } from "../auth/credential-resolver.js";
 import { pollWorkItem, finalizeS3Upload } from "../lib/da-client.js";
 import { loadFinalizeQueue, cleanFinalizeQueue } from "../lib/finalize-store.js";
 import { removeActiveJob } from "../lib/session-store.js";
+import { jobRegistry } from "../lib/job-registry.js";
 // ── Schemas ───────────────────────────────────────────────────────────────
 const s3FinalizeEntrySchema = z.object({
     bucketKey: z.string(),
@@ -116,6 +117,53 @@ export async function handleGetWorkflowStatus(input) {
 }
 // ── Single-handle poller (unchanged behaviour from Sprint 3) ──────────────
 async function pollSingleHandle(token, handle, timeoutMs, t0) {
+    // ── Registry fast-path (parallel-by-default) ─────────────────────────────
+    // If the background batch-poller has already updated this job to a terminal
+    // state, return immediately without a live APS poll call (saves one 25s round-trip).
+    // Fallback: job not in registry or still pending → regular pollWorkItem below.
+    const cached = jobRegistry.get(handle.workItemId);
+    if (cached && cached.state !== "pending" && cached.state !== "inprogress") {
+        const durationMs = cached.durationMs ?? (Date.now() - t0);
+        try {
+            removeActiveJob(handle.workItemId);
+        }
+        catch { /* non-fatal */ }
+        await finalizeJobOutputs(token, handle);
+        if (cached.state === "success") {
+            return {
+                status: "success",
+                overall_status: "success",
+                next_action: buildGetResultChain(handle.outputOssUrls),
+                workItemId: handle.workItemId,
+                outputOssUrls: handle.outputOssUrls,
+                reportUrl: cached.reportUrl,
+                durationMs,
+                hint: "Status resolved via background batch poller (no live APS poll needed).",
+            };
+        }
+        if (cached.state === "cancelled") {
+            return {
+                status: "cancelled",
+                overall_status: "cancelled",
+                next_action: "STOP POLLING. Job was cancelled. Do not call get_result.",
+                workItemId: handle.workItemId,
+                reportUrl: cached.reportUrl,
+                durationMs,
+                error: "WorkItem was cancelled.",
+            };
+        }
+        // failed
+        return {
+            status: "failed",
+            overall_status: "failed",
+            next_action: "STOP POLLING. Job failed. Check the reportUrl for the execution log.",
+            workItemId: handle.workItemId,
+            reportUrl: cached.reportUrl,
+            durationMs,
+            error: `WorkItem finished with status '${cached.state}'.`,
+        };
+    }
+    // ── Sequential fallback: live APS poll ────────────────────────────────────
     let finalItem;
     let timedOut = false;
     let pollError;
@@ -177,6 +225,14 @@ async function pollSingleHandle(token, handle, timeoutMs, t0) {
     const daStatus = finalItem.status;
     try {
         removeActiveJob(handle.workItemId);
+    }
+    catch { /* non-fatal */ }
+    // Keep registry in sync with live poll result so future calls hit the fast-path.
+    try {
+        jobRegistry.update(handle.workItemId, {
+            state: daStatus === "success" ? "success" : daStatus === "cancelled" ? "cancelled" : "failed",
+            reportUrl: finalItem.reportUrl,
+        });
     }
     catch { /* non-fatal */ }
     if (daStatus === "success") {

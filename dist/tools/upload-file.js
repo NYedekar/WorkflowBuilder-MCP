@@ -1,6 +1,7 @@
 import { readFileSync, statSync, existsSync } from "fs";
 import { basename, extname } from "path";
 import { homedir } from "os";
+import { createHash } from "crypto";
 import { z } from "zod";
 import { getPersistedUpload, setPersistedUpload } from "../lib/session-store.js";
 const ossUploadCache = new Map();
@@ -35,8 +36,9 @@ export const uploadFileSchema = z.object({
         .optional()
         .describe("HTTPS URL to fetch and upload directly to APS OSS. " +
         "Useful for OneDrive 'Anyone with the link' sharing URLs and other public HTTPS file URLs. " +
-        "The MCP server downloads the file server-side and streams it to APS — " +
-        "no local file needed. Provide either file_path or file_url, not both."),
+        "The MCP server downloads the file into memory then uploads it to APS — no local file needed. " +
+        "Files larger than ~50MB may time out; save locally first and use file_path instead. " +
+        "Provide either file_path or file_url, not both."),
     bucket_key: z
         .string()
         .optional()
@@ -290,14 +292,27 @@ async function handleUrlUpload(input) {
     // Decode percent-encoding and strip query params that might have leaked into the basename.
     const filename = decodeURIComponent(rawFilename.split("?")[0]) || rawFilename;
     const contentType = detectContentType(filename);
+    // ── Dedup cache check (mirrors S3-C file-path dedup) ─────────────────────
+    // Resolve bucket/object early enough to build the cache key before fetching.
+    // Auth is needed for the bucket key default — defer full check; use env fallback.
+    const earlyClientId = process.env.APS_CLIENT_ID?.trim() ?? "unknown";
+    const earlyBucket = sanitizeBucketKey(input.bucket_key ?? `${earlyClientId}-uploads`);
+    const earlyObject = input.object_key ?? filename;
+    const urlHash = createHash("sha1").update(fileUrl).digest("hex").slice(0, 16);
+    const urlCacheKey = `url:${urlHash}:${earlyBucket}:${earlyObject}`;
+    const cachedOss = getCachedOssUrl(urlCacheKey) ?? getPersistedUpload(urlCacheKey);
+    if (cachedOss) {
+        setCachedOssUrl(urlCacheKey, cachedOss);
+        return { status: "success", oss_url: cachedOss, cached: true };
+    }
     // ── Fetch remote file ─────────────────────────────────────────────────────
     let fileBuffer;
     let fileSizeBytes;
     try {
-        // 50s — must stay under the MCP stdio transport ~60s kill deadline.
-        // Large files (>50MB) may time out; the user should save locally and use file_path instead.
+        // 25s per fetch attempt. With one HTML retry, max total = ~50s < MCP ~60s transport limit.
+        // Large files that exceed 25s download should be saved locally and use file_path instead.
         const fetchController = new AbortController();
-        const fetchTimer = setTimeout(() => fetchController.abort(), 50_000);
+        const fetchTimer = setTimeout(() => fetchController.abort(), 25_000);
         let res;
         try {
             res = await fetch(fileUrl, { signal: fetchController.signal });
@@ -318,7 +333,7 @@ async function handleUrlUpload(input) {
         if (contentTypeHdr.includes("text/html")) {
             const downloadUrl = fileUrl.includes("?") ? `${fileUrl}&download=1` : `${fileUrl}?download=1`;
             const retryController = new AbortController();
-            const retryTimer = setTimeout(() => retryController.abort(), 50_000);
+            const retryTimer = setTimeout(() => retryController.abort(), 25_000);
             let retryRes;
             try {
                 retryRes = await fetch(downloadUrl, { signal: retryController.signal });
@@ -395,6 +410,9 @@ async function handleUrlUpload(input) {
         return { status: "error", error: `Finalize upload failed: ${String(err)}` };
     }
     const ossUrl = `oss://${bucketKey}/${objectKey}`;
+    // Persist dedup cache — reuse the key computed at the top of the function.
+    setCachedOssUrl(urlCacheKey, ossUrl);
+    setPersistedUpload(urlCacheKey, ossUrl);
     return {
         status: "success",
         oss_url: ossUrl,

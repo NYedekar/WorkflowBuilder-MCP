@@ -5,6 +5,7 @@ import * as os from "os";
 import { fileURLToPath } from "url";
 import { persistFinalizeQueue } from "../lib/finalize-store.js";
 import { saveActiveJob } from "../lib/session-store.js";
+import { jobRegistry } from "../lib/job-registry.js";
 import { resolveCredential, resolve3LOCredential, DEFAULT_SCOPES } from "../auth/credential-resolver.js";
 import { findCapabilityById, findOperationByGlobalId } from "../lib/registry-client.js";
 import { getActivity, createActivity, createActivityAlias, getNickname, ensureBucket, uploadJsonToOss, submitWorkItem, getSignedDownloadUrl, getSignedS3UploadUrl, uploadToS3, finalizeS3Upload, DAError, } from "../lib/da-client.js";
@@ -744,6 +745,10 @@ async function executeEngineApi(cap, op, input, t0) {
         saveActiveJob({ workItemId, outputOssUrls, submittedAt: Date.now(), capability_id: cap.id, operation_id: op.operationId });
     }
     catch { /* non-fatal */ }
+    // Register in in-memory job registry so the batch poller can poll all submitted
+    // jobs simultaneously in the background (parallel-by-default, sequential fallback).
+    // If 2+ jobs are registered, batch-poller.ts auto-starts and updates registry every 5s.
+    jobRegistry.register(workItemId, outputOssUrls);
     return {
         status: "pending",
         mode: "engine_api",
@@ -752,6 +757,7 @@ async function executeEngineApi(cap, op, input, t0) {
         // Keeping large uploadKey payloads in the LLM-facing handle overflows the MCP stdio buffer.
         workflow_handle: { type: "da_workitem", workItemId, outputOssUrls, s3FinalizeQueue: [] },
         durationMs: Date.now() - t0,
+        next_action: "IMMEDIATELY call get_workflow_status(workflow_handle). No text output. No user prompt. Keep polling until success or failed.",
         hint: "WorkItem submitted. Call get_workflow_status(workflow_handle) to poll for completion. Repeat until status is 'success' or 'failed'.",
     };
 }
