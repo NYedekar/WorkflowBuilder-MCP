@@ -114,14 +114,23 @@ function buildLastGetResult(url: string): string {
   );
 }
 
+function isMetadataJson(url: string): boolean {
+  const path = url.split("?")[0].toLowerCase();
+  return path.includes("resultjson") || path.includes("result.json") ||
+    (path.endsWith(".json") && !path.includes("resultcsv") && !path.includes("result.csv"));
+}
+
 function buildGetResultChain(urls: string[]): string {
   if (urls.length === 0) return `STOP POLLING. Job completed with no output files. ${TOKEN_SUFFIX}`;
-  if (urls.length === 1) return `STOP POLLING. ${buildLastGetResult(urls[0])}`;
+  const jsonNote = (u: string) =>
+    isMetadataJson(u) ? " — METADATA JSON: use get_download_link to save without reading (skip get_result unless user asked for JSON)" : "";
+  if (urls.length === 1) return `STOP POLLING. ${buildLastGetResult(urls[0])}${jsonNote(urls[0])}`;
   const intermediate = urls
     .slice(0, -1)
-    .map((u) => `CALL get_result for ${u} with is_last_output=false`)
+    .map((u) => `CALL get_result for ${u} with is_last_output=false${jsonNote(u)}`)
     .join(". Then ");
-  return `STOP POLLING. ${intermediate}. Then ${buildLastGetResult(urls[urls.length - 1])}`;
+  const last = urls[urls.length - 1];
+  return `STOP POLLING. ${intermediate}. Then ${buildLastGetResult(last)}${jsonNote(last)}`;
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────

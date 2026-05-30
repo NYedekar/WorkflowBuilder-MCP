@@ -66,7 +66,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: "execute_workflow",
-                description: "Run a SINGLE APS capability operation: Engine-API (DA WorkItem submit → returns pending immediately → poll with get_workflow_status) " +
+                description: "PREREQUISITE: capability_id MUST come from a get_capability() call in this session — NEVER use an ID from memory or training data. Unregistered IDs fail immediately. " +
+                    "Execution plan (Step 3 in instructions) must be presented before the first call. " +
+                    "Run a SINGLE APS capability operation: Engine-API (DA WorkItem submit → returns pending immediately → poll with get_workflow_status) " +
                     "or Platform-API (REST call → returns response inline). " +
                     "REST tip: pass all parameters in the single 'args' field — the tool auto-routes each key to path, query, or body. " +
                     "For REST operations requiring user identity (3LO_REQUIRED error), call authenticate_aps_3lo first.",
@@ -97,7 +99,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: "upload_file",
-                description: "Upload a file to APS OSS. Pass file_path for a local Mac file, or file_url for an HTTPS URL " +
+                description: "PREREQUISITE: get_capability must have been called for all intents, and the execution plan (Step 3) presented, before calling this. " +
+                    "Upload a file to APS OSS. Pass file_path for a local Mac file, or file_url for an HTTPS URL " +
                     "(e.g. OneDrive 'Anyone with the link' sharing URL or any public HTTPS file URL). " +
                     "Returns oss:// URL for use with execute_workflow.",
                 inputSchema: zodToJsonSchema(uploadFileSchema),
