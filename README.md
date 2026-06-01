@@ -29,7 +29,6 @@ The setup wizard asks for your APS Client ID and Client Secret, validates your c
 
 - [What it does](#what-it-does)
 - [Key concepts](#key-concepts)
-- [Supported file types](#supported-file-types)
 - [Key use cases](#key-use-cases)
 - [Tools reference](#tools-reference)
 - [When to use which tool](#when-to-use-which-tool)
