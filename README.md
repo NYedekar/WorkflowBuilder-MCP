@@ -9,15 +9,22 @@ WorkflowSkills MCP is an [MCP (Model Context Protocol)](https://modelcontextprot
 ## Quick Start
 
 ```bash
+# Autodesk internal
+git clone https://git.autodesk.com/yedekan/WorkflowSkills-MCP.git
+
+# or GitHub
 git clone https://github.com/NYedekar/WorkflowSkills-MCP.git
+
 cd WorkflowSkills-MCP
 npm install
 npm run setup
 ```
 
-The setup wizard asks for your APS Client ID and Client Secret, validates your credentials, and configures Claude automatically. Restart Claude and you're ready to go.
+The setup wizard asks for your APS Client ID and Client Secret, validates your credentials, and configures Claude automatically. Restart Claude Desktop or open a new `claude` terminal session and you're ready to go.
 
-> **Prerequisites:** [Node.js](https://nodejs.org) v18+, Claude Desktop or Claude Code, and a free [APS application](https://aps.autodesk.com/myapps).
+> **Prerequisites:** [Node.js](https://nodejs.org) v18+, Claude Desktop or Claude Code CLI, and a free [APS application](https://aps.autodesk.com/myapps).
+>
+> **Design Automation (DA) capabilities** (Revit extraction, PDF export, AutoCAD processing) require AppBundles deployed to your APS account. See [AppBundle deployment](#appbundle-deployment) below.
 
 ---
 
@@ -31,6 +38,7 @@ The setup wizard asks for your APS Client ID and Client Secret, validates your c
 - [When to use which tool](#when-to-use-which-tool)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
+- [AppBundle deployment](#appbundle-deployment)
 - [APS application setup](#aps-application-setup)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
@@ -189,8 +197,9 @@ No file — just an APS API call or info question?
 ## Prerequisites
 
 - [Node.js](https://nodejs.org) v18 or later
-- [Claude Desktop](https://claude.ai/download) or [Claude Code](https://claude.ai/code)
+- [Claude Desktop](https://claude.ai/download) or [Claude Code CLI](https://claude.ai/code) (both work — same config file)
 - An APS application with a **Client ID** and **Client Secret** — create one free at [aps.autodesk.com/myapps](https://aps.autodesk.com/myapps)
+- **For Design Automation capabilities only:** AppBundles deployed to your APS account — see [AppBundle deployment](#appbundle-deployment)
 
 ---
 
@@ -199,7 +208,12 @@ No file — just an APS API call or info question?
 ### 1. Clone and build
 
 ```bash
+# Autodesk internal
+git clone https://git.autodesk.com/yedekan/WorkflowSkills-MCP.git
+
+# or GitHub
 git clone https://github.com/NYedekar/WorkflowSkills-MCP.git
+
 cd WorkflowSkills-MCP
 npm install
 npm run build
@@ -215,9 +229,49 @@ npm run setup
 
 You will be prompted for your APS Client ID and Client Secret. The secret is stored in the OS keychain and **never written to any file on disk**.
 
-### 3. Restart Claude
+### 3. Start Claude
 
-Fully quit and relaunch Claude Desktop or Claude Code. The `workflow-builder` server will appear in your MCP tools list.
+- **Claude Desktop** — fully quit and relaunch (Cmd+Q, then reopen)
+- **Claude Code CLI** — open a new terminal session and run `claude`
+
+The `workflow-builder` server will appear in your MCP tools list.
+
+> **Using Design Automation capabilities?** Complete the [AppBundle deployment](#appbundle-deployment) step before running your first DA job.
+
+---
+
+---
+
+## AppBundle deployment
+
+Design Automation capabilities (Revit parameter extraction, PDF/IFC export, AutoCAD metadata extraction, sheet list generation) run as cloud compute jobs using custom AppBundles deployed to your APS account. The MCP server resolves your APS DA nickname automatically from your credentials at runtime — **you do not need to edit any config files.**
+
+AppBundle source code and CI pipelines live in a companion repository:
+
+| Repo | Purpose |
+|------|---------|
+| [APS_CapabilityAppBundles](https://git.autodesk.com/yedekan/APS_CapabilityAppBundles) (internal) | C# plugin source + GitHub Actions workflows that build and deploy each AppBundle to APS |
+| [APS_CapabilityAppBundles](https://github.com/NYedekar/APS_CapabilityAppBundles) (GitHub) | Same repo, mirrored |
+
+### Deploy to your own APS account
+
+1. **Clone the AppBundles repo**
+   ```bash
+   git clone https://git.autodesk.com/yedekan/APS_CapabilityAppBundles.git
+   ```
+
+2. **Add repository secrets** — in the repo's **Settings → Secrets**, add:
+   | Secret | Value |
+   |--------|-------|
+   | `APS_CLIENT_ID` | Your APS app Client ID |
+   | `APS_CLIENT_SECRET` | Your APS app Client Secret |
+   | `APS_NICKNAME` | Your APS DA nickname (shown at [aps.autodesk.com/myapps](https://aps.autodesk.com/myapps)) |
+
+3. **Trigger the CI workflows** — go to **Actions** and run each `Build & Publish` workflow manually, or push any change to `main`. The workflows build the plugin DLLs on Windows, zip them into `.bundle` packages, and upload + register them in your APS account automatically.
+
+Once deployed, all DA capabilities in WorkflowSkills MCP will invoke your own AppBundles automatically — no further configuration needed.
+
+> **Platform-API capabilities** (Model Derivative, Data Management, ACC, OSS, BIM 360, etc.) do **not** require AppBundles. They call APS REST APIs directly and work immediately after `npm run setup`.
 
 ---
 
@@ -334,7 +388,9 @@ For questions, bug reports, or feature requests, contact:
 Product Manager, Autodesk
 [neeraj.yedekar@autodesk.com](mailto:neeraj.yedekar@autodesk.com)
 
-Or open an issue on GitHub: [github.com/NYedekar/WorkflowSkills-MCP/issues](https://github.com/NYedekar/WorkflowSkills-MCP/issues)
+Open an issue:
+- Autodesk internal: [git.autodesk.com/yedekan/WorkflowSkills-MCP/issues](https://git.autodesk.com/yedekan/WorkflowSkills-MCP/issues)
+- GitHub: [github.com/NYedekar/WorkflowSkills-MCP/issues](https://github.com/NYedekar/WorkflowSkills-MCP/issues)
 
 ---
 
