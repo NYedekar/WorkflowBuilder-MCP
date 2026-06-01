@@ -91,24 +91,6 @@ WorkflowSkills MCP now supports authentication for specific APIs with 3LO.
 
 ---
 
-## Supported file types
-
-| Category | Extensions |
-|----------|-----------|
-| AutoCAD | `DWG` `DXF` `DWT` `DWS` `DWF` `DWFX` |
-| Revit | `RVT` `RFA` `RTE` `RFT` |
-| Inventor | `IPT` `IAM` `IDW` `IPN` `IDE` |
-| Fusion | `F3D` `F3Z` `CAM360` |
-| 3ds Max | `MAX` `MA` `MB` |
-| Navisworks | `NWD` `NWF` `NWC` |
-| Open standards | `IFC` `FBX` `STEP` `STP` `IGES` `IGS` `SAT` `OBJ` `STL` |
-| Point cloud | `RCP` `RCS` `PTS` `E57` `LAS` `LAZ` |
-| JT / Wire | `JT` `WIRE` `IWMODEL` `IMX` |
-| Simulation | `NAS` `BDF` `FEM` `OP2` |
-| Autodesk misc | `ADSK` `ADSKLIB` `ATF` `ASM` `SMT` `SMB` |
-
----
-
 ## Key use cases
 
 ### 1. Translate a DWG for the Autodesk Viewer
