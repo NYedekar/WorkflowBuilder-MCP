@@ -79,6 +79,10 @@ import {
   getTokenUsageSchema,
   handleGetTokenUsage,
 } from "./tools/get-token-usage.js";
+import {
+  saveWorkflowAsSkillSchema,
+  handleSaveWorkflowAsSkill,
+} from "./tools/save-workflow-as-skill.js";
 
 // ─── Server setup ─────────────────────────────────────────────────────────
 
@@ -237,6 +241,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "Filter by date range, session_id, workflow_id, or model.",
         inputSchema: zodToJsonSchema(getTokenUsageSchema),
       },
+      {
+        name: "save_workflow_as_skill",
+        description:
+          "Freeze a workflow you JUST ran into a reusable Claude skill the user can invoke as /<slug> with different inputs each time. " +
+          "Offer this AFTER a successful multi-step run when the user says 'save this', 'make this a skill', 'I'll do this again', or the flow is clearly repeatable. " +
+          "Pass the recipe from your context: name, intent, the ordered steps (capability_id + operation_id + fixed args), " +
+          "and inputs[] for the values that vary per run (reference them in step args as {{key}}). " +
+          "The tool validates every capability_id/operation_id against the registry, derives 2LO/3LO auth, rejects baked-in secrets, " +
+          "and writes SKILL.md + workflow.json into the skills directory. NEVER put tokens or secrets in step args.",
+        inputSchema: zodToJsonSchema(saveWorkflowAsSkillSchema),
+      },
     ],
   };
 });
@@ -294,6 +309,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case "get_token_usage":
         result = await handleGetTokenUsage(getTokenUsageSchema.parse(args));
+        break;
+      case "save_workflow_as_skill":
+        result = await handleSaveWorkflowAsSkill(saveWorkflowAsSkillSchema.parse(args));
         break;
       default:
         return {

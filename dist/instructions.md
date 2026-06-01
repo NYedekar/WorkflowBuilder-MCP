@@ -187,3 +187,22 @@ If you only have a workItemId (no full workflow_handle), reconstruct and keep po
 
 NEVER tell the user "the MCP server is unresponsive" — pending means still running, keep polling.
 NEVER pause between polls to summarize progress or ask for confirmation.
+
+── SAVE A WORKFLOW AS A SKILL (save_workflow_as_skill) ──────────────────
+
+After a workflow finishes successfully, OFFER to save it as a reusable skill when EITHER:
+  • the run involved 2+ steps or a non-obvious capability/operation choice, OR
+  • the user signals reuse: "save this", "make this a skill", "I do this a lot", "I'll run this again".
+
+How to capture the recipe (you already have it in context):
+  • steps[]  = the EXACT capability_id + operation_id you just ran, in order, with the fixed args.
+  • inputs[] = only the values that should change per run (the input file is almost always one).
+               Replace those values in step args / input_file_url with {{key}} and declare each key in inputs[].
+               Everything else stays literal (frozen).
+  • Use depends_on / produces to record which step feeds which (output of step A → input of step B).
+
+Then call save_workflow_as_skill(name, intent, steps, inputs, [description], [auth_mode]).
+  • It validates every capability against the registry, derives 2LO/3LO auth, and rejects secrets.
+  • NEVER pass tokens, secrets, or bearer_token in step args — auth is handled at run time.
+  • On success: tell the user the new /<slug> command and that a Claude restart refreshes the skill list.
+  • On error: read the hint, fix the recipe (e.g. declare a missing {{placeholder}} input), and retry.
