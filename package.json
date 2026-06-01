@@ -8,7 +8,8 @@
     "build": "npm run validate-registry && tsc && cp src/instructions.md dist/instructions.md",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
-    "setup": "node dist/setup.js"
+    "setup": "node dist/setup.js",
+    "test": "node --test test/mcp-client.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
