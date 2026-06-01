@@ -229,7 +229,6 @@ AppBundle source code and CI pipelines live in a companion repository:
 | Repo | Purpose |
 |------|---------|
 | [APS_CapabilityAppBundles](https://git.autodesk.com/yedekan/APS_CapabilityAppBundles) (internal) | C# plugin source + GitHub Actions workflows that build and deploy each AppBundle to APS |
-| [APS_CapabilityAppBundles](https://github.com/NYedekar/APS_CapabilityAppBundles) (GitHub) | Same repo, mirrored |
 
 ### Deploy to your own APS account
 
