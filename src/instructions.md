@@ -115,17 +115,16 @@ Step 5 — OUTPUT RETRIEVAL:
 
 Step 6 — TOKEN TRACKING (mandatory — never skip):
 
-         SINGLE-JOB session (one DA job or one REST call):
-           • Pass model + estimated_input_tokens + estimated_output_tokens to the final get_result
-             call. Token usage records automatically and summary_line is returned.
-           • If get_result is not called (zero-output job), call record_token_usage explicitly.
+         After ALL outputs are retrieved (all get_result calls done), call record_token_usage
+         with model=<your model ID>, input_tokens=<total session estimate>,
+         output_tokens=<total session estimate>.
 
-         MULTI-JOB session (2+ DA jobs submitted in the same session):
-           • Set is_last_output=false on ALL get_result calls — do NOT pass model/token params inline.
-           • After the last get_result of the ENTIRE session returns, call record_token_usage
-             EXPLICITLY with model=<your model ID>, input_tokens=<total session estimate>,
-             output_tokens=<total session estimate>.
-           • Setting is_last_output=false does NOT satisfy this step — the explicit call is still required.
+         Shortcut — single final output: pass model + estimated_input_tokens +
+         estimated_output_tokens directly on the last get_result call to auto-record
+         inline (summary_line is returned in the response).
+
+         Every get_result response includes a next_action field. When it says
+         "TOKEN TRACKING REQUIRED" — obey it immediately: call record_token_usage.
 
          Always output the summary_line verbatim as the last line of your response.
          Use your best token estimate — exact counts are not required.
