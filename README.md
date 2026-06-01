@@ -12,9 +12,6 @@ WorkflowSkills MCP is an [MCP (Model Context Protocol)](https://modelcontextprot
 # Autodesk internal
 git clone https://git.autodesk.com/yedekan/WorkflowSkills-MCP.git
 
-# or GitHub
-git clone https://github.com/NYedekar/WorkflowSkills-MCP.git
-
 cd WorkflowSkills-MCP
 npm install
 npm run setup
