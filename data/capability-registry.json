@@ -1,26 +1,26 @@
 {
   "registry": "Capability Registry",
-  "schemaVersion": "1.9.8-rest",
+  "schemaVersion": "1.9.9-rest",
   "generatedAt": "2026-05-19T18:22:33.411Z",
-  "patchedAt": "2026-05-28T00:00:00Z",
-  "patchNotes": "v1.9.8 \u2014 Three additions from APIInteractionsbyCategory.csv gap analysis: (1) ACC Cost Management expanded from 1 to 12 capabilities covering budgets, contracts, cost items, change orders, expenses, main contracts, payments & schedule-of-values, time sheets, performance tracking, attachments, segments/templates, and workflow actions \u2014 unmatchedOperations promoted to proper capabilities; (2) ACC BuildingConnected & TradeTapp added as capability group 06.08.20 with 15 capabilities covering projects, costs, team members, bid packages, invites, bids, bid forms, scope-specific bid forms, opportunities, contacts, users, reference data, opportunity-project pairs, financials, and qualifications; (3) Tandem Data API added to Data-APIs domain with 6 capability groups covering documents, groups & twins, model data, model streams, time-series IoT streams, and twin lifecycle. All new operations marked callable:true.",
+  "patchedAt": "2026-05-31T00:00:00Z",
+  "patchNotes": "v1.9.8 \u2014 Three additions from APIInteractionsbyCategory.csv gap analysis: (1) ACC Cost Management expanded from 1 to 12 capabilities covering budgets, contracts, cost items, change orders, expenses, main contracts, payments & schedule-of-values, time sheets, performance tracking, attachments, segments/templates, and workflow actions \u2014 unmatchedOperations promoted to proper capabilities; (2) ACC BuildingConnected & TradeTapp added as capability group 06.08.20 with 15 capabilities covering projects, costs, team members, bid packages, invites, bids, bid forms, scope-specific bid forms, opportunities, contacts, users, reference data, opportunity-project pairs, financials, and qualifications; (3) Tandem Data API added to Data-APIs domain with 6 capability groups covering documents, groups & twins, model data, model streams, time-series IoT streams, and twin lifecycle. All new operations marked callable:true. | v1.9.9 \u2014 Added 9 Autodesk-shared public activities: AutoCAD (+5: PlotToPDF_v2, ExportDWG, ExtractThumbnail, ExportLayers, ExportBlockData), Revit (+2 new group: ExtractThumbnail, ExportIFC), Inventor (+2 new group: ExtractThumbnail, ExportBOM), 3dsMax (+1: ExtractThumbnail). All callable:true, SAFE.",
   "summary": {
     "domains": 5,
     "engines": 5,
     "apis": 25,
-    "capabilityGroups": 151,
-    "capabilities": 307,
-    "operations": 1578,
+    "capabilityGroups": 153,
+    "capabilities": 317,
+    "operations": 1588,
     "risk": {
-      "SAFE": 626,
+      "SAFE": 636,
       "REVIEW": 899,
       "DESTRUCTIVE": 53
     },
     "byDomain": {
       "Engine-APIs": {
-        "capabilities": 159,
-        "operations": 849,
-        "capabilityGroups": 54,
+        "capabilities": 169,
+        "operations": 859,
+        "capabilityGroups": 56,
         "apis": 0
       },
       "Product-APIs": {
@@ -5159,6 +5159,85 @@
                       "sourceVerificationStatus": "VERIFIED"
                     }
                   ]
+                },
+                {
+                  "id": "autocad:AutoCADLayerReport",
+                  "alias": "ReportAutoCADLayersTD",
+                  "qualifiedName": "com.autodesk.autocad.ReportAutoCADLayersTD",
+                  "version": "1.0.0",
+                  "product": "AutoCAD",
+                  "groupId": "autocad:data-extraction",
+                  "engine": "Autodesk.AutoCAD+24_3",
+                  "risk": "SAFE",
+                  "ioShape": "inputFile.dwg \u2192 result.json",
+                  "rawSourceSnippet": "CAPABILITY: autocad:AutoCADLayerReport\nRisk: SAFE\nI/O: inputFile.dwg \u2192 result.json\nEngine: Autodesk.AutoCAD+24_3\n",
+                  "contract": {
+                    "identity": {
+                      "name": "AutoCADLayerReport",
+                      "group": "data-extraction",
+                      "scope": "Engine API"
+                    },
+                    "io": {
+                      "input": "inputFile.dwg",
+                      "output": "result.json"
+                    },
+                    "execution": {
+                      "accessPattern": "AppBundle",
+                      "interface": "Autodesk.AutoCAD+24_3"
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() \u2192 Registry match"
+                    }
+                  },
+                  "description": "Report every layer in a DWG (name, color index, linetype, on/off/frozen/locked/plottable) plus a layer count, to JSON. Custom AppBundle (LAYERREPORT command).",
+                  "apiId": "engine:AutoCAD",
+                  "capabilityGroupId": "autocad:data-extraction",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "extract-layer-report",
+                      "displayName": "Extract Layer Report",
+                      "description": "Return all layers with color, linetype, and state flags, plus LayerCount.",
+                      "capabilityId": "autocad:AutoCADLayerReport",
+                      "groupId": "autocad:data-extraction",
+                      "product": "AutoCAD",
+                      "engine": "Autodesk.AutoCAD+24_3",
+                      "risk": "SAFE",
+                      "outputContract": "Structured JSON result",
+                      "ioShape": "inputFile.dwg \u2192 result.json",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "autocad.extract-layer-report",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "VERIFIED",
+                      "workItemArguments": {
+                        "inputFile": {
+                          "verb": "get"
+                        },
+                        "resultJson": {
+                          "verb": "put",
+                          "localName": "result.json"
+                        }
+                      }
+                    }
+                  ],
+                  "provenance": "Published by /appbuilder test-drive; activity exists in APS as {NICKNAME}.ReportAutoCADLayersTD+prod"
                 }
               ]
             },
@@ -6762,8 +6841,8 @@
               "defaultConfigTemplate": null,
               "defaultWorkItemTemplate": "workitem.autodesk.public",
               "note": "Autodesk-published activities. No custom AppBundle required. Call activityId directly in WorkItem.",
-              "capabilityCount": 2,
-              "operationCount": 2,
+              "capabilityCount": 7,
+              "operationCount": 7,
               "capabilities": [
                 {
                   "id": "autocad:AutoCADPlotToPDF",
@@ -6847,8 +6926,7 @@
                           },
                           "Result": {
                             "url": "{signed-output-url}",
-                            "verb": "post",
-                            "localName": "result.pdf"
+                            "verb": "post"
                           }
                         }
                       }
@@ -6946,6 +7024,464 @@
                       }
                     }
                   ]
+                },
+                {
+                  "id": "autocad:AutoCADPlotToPDFv2",
+                  "alias": "AutoCADPlotToPDFv2",
+                  "qualifiedName": "com.autodesk.public.autocad.AutoCADPlotToPDFv2",
+                  "version": "1.0.0",
+                  "product": "AutoCAD",
+                  "groupId": "autocad:public-activities",
+                  "engine": "Autodesk.AutoCAD+23, +24, +25, +26",
+                  "risk": "SAFE",
+                  "ioShape": "sourceFile.dwg + pageSetupOverride.json \u2192 result.pdf",
+                  "activityRef": "AutoCAD.PlotToPDF_v2+prod",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "AutoCADPlotToPDFv2",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "sourceFile.dwg + pageSetupOverride.json",
+                      "output": "result.pdf"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.AutoCAD+23, +24, +25, +26",
+                      "activityRef": "AutoCAD.PlotToPDF_v2+prod",
+                      "note": "No custom AppBundle required \u2014 Autodesk-published activity called directly."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() \u2192 Registry match"
+                    }
+                  },
+                  "description": "Extended PlotToPDF with optional per-layout page-setup override JSON. Overrides paper size, plotter, and scale per layout, ignoring DWG-embedded settings. No custom AppBundle required.",
+                  "apiId": "engine:AutoCAD",
+                  "capabilityGroupId": "autocad:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "plot-sheets-with-page-setup-override",
+                      "displayName": "Plot Sheets with Page Setup Override",
+                      "description": "Plot all layouts to PDF using an optional JSON page-setup override file. Overrides paper size, plotter, and scale per layout.",
+                      "capabilityId": "autocad:AutoCADPlotToPDFv2",
+                      "groupId": "autocad:public-activities",
+                      "product": "AutoCAD",
+                      "engine": "Autodesk.AutoCAD+23, +24, +25, +26",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.pdf",
+                      "ioShape": "sourceFile.dwg + pageSetupOverride.json \u2192 result.pdf",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "autocad.public.plot-sheets-with-page-setup-override",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "UNVERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "AutoCAD.PlotToPDF_v2+prod",
+                        "arguments": {
+                          "HostDwg": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "PageSetupOverride": {
+                            "url": "{signed-params-url}",
+                            "verb": "get"
+                          },
+                          "Result": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "note": "Activity: AutoCAD.PlotToPDF_v2+prod. PlotToPDF v2 with page-setup override. Keywords: plot PDF page setup plotter paper size scale layout override DWG batch publish."
+                },
+                {
+                  "id": "autocad:AutoCADExportDWG",
+                  "alias": "AutoCADExportDWG",
+                  "qualifiedName": "com.autodesk.public.autocad.AutoCADExportDWG",
+                  "version": "1.0.0",
+                  "product": "AutoCAD",
+                  "groupId": "autocad:public-activities",
+                  "engine": "Autodesk.AutoCAD+23, +24, +25, +26",
+                  "risk": "SAFE",
+                  "ioShape": "sourceFile.dwg + paramFile.json \u2192 result.dwg",
+                  "activityRef": "AutoCAD.ExportDWG+prod",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "AutoCADExportDWG",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "sourceFile.dwg + paramFile.json",
+                      "output": "result.dwg"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.AutoCAD+23, +24, +25, +26",
+                      "activityRef": "AutoCAD.ExportDWG+prod",
+                      "note": "No custom AppBundle required \u2014 Autodesk-published activity called directly."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() \u2192 Registry match"
+                    }
+                  },
+                  "description": "Convert a DWG to an older format version (AutoCAD2010/2013/2018). paramFile.json specifies the target version string. No custom AppBundle required.",
+                  "apiId": "engine:AutoCAD",
+                  "capabilityGroupId": "autocad:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "export-dwg-to-version",
+                      "displayName": "Export DWG to Target Version",
+                      "description": "Downsave a DWG to AutoCAD2010, AutoCAD2013, or AutoCAD2018 format using the version string in paramFile.json.",
+                      "capabilityId": "autocad:AutoCADExportDWG",
+                      "groupId": "autocad:public-activities",
+                      "product": "AutoCAD",
+                      "engine": "Autodesk.AutoCAD+23, +24, +25, +26",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.dwg",
+                      "ioShape": "sourceFile.dwg + paramFile.json \u2192 result.dwg",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "autocad.public.export-dwg-to-version",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "UNVERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "AutoCAD.ExportDWG+prod",
+                        "arguments": {
+                          "HostDwg": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "ParamFile": {
+                            "url": "{signed-params-url}",
+                            "verb": "get"
+                          },
+                          "Result": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "note": "Activity: AutoCAD.ExportDWG+prod. DWG version conversion / downsave. Keywords: export DWG AutoCAD2010 AutoCAD2013 AutoCAD2018 downgrade version migrate format convert."
+                },
+                {
+                  "id": "autocad:AutoCADExtractThumbnail",
+                  "alias": "AutoCADExtractThumbnail",
+                  "qualifiedName": "com.autodesk.public.autocad.AutoCADExtractThumbnail",
+                  "version": "1.0.0",
+                  "product": "AutoCAD",
+                  "groupId": "autocad:public-activities",
+                  "engine": "Autodesk.AutoCAD+23, +24, +25, +26",
+                  "risk": "SAFE",
+                  "ioShape": "sourceFile.dwg \u2192 result.png",
+                  "activityRef": "AutoCAD.ExtractThumbnail+prod",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "AutoCADExtractThumbnail",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "sourceFile.dwg",
+                      "output": "result.png"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.AutoCAD+23, +24, +25, +26",
+                      "activityRef": "AutoCAD.ExtractThumbnail+prod",
+                      "note": "No custom AppBundle required \u2014 Autodesk-published activity called directly."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() \u2192 Registry match"
+                    }
+                  },
+                  "description": "Render a PNG thumbnail of a DWG file (model space or first layout). Faster than a full Model Derivative translation for preview images. No custom AppBundle required.",
+                  "apiId": "engine:AutoCAD",
+                  "capabilityGroupId": "autocad:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "extract-drawing-thumbnail",
+                      "displayName": "Extract Drawing Thumbnail",
+                      "description": "Render a PNG preview image from a DWG file's model space or first layout.",
+                      "capabilityId": "autocad:AutoCADExtractThumbnail",
+                      "groupId": "autocad:public-activities",
+                      "product": "AutoCAD",
+                      "engine": "Autodesk.AutoCAD+23, +24, +25, +26",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.png",
+                      "ioShape": "sourceFile.dwg \u2192 result.png",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "autocad.public.extract-drawing-thumbnail",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "UNVERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "AutoCAD.ExtractThumbnail+prod",
+                        "arguments": {
+                          "HostDwg": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "Result": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "note": "Activity: AutoCAD.ExtractThumbnail+prod. DWG thumbnail / preview image. Keywords: thumbnail preview PNG DWG image render model space viewport visual."
+                },
+                {
+                  "id": "autocad:AutoCADExportLayers",
+                  "alias": "AutoCADExportLayers",
+                  "qualifiedName": "com.autodesk.public.autocad.AutoCADExportLayers",
+                  "version": "1.0.0",
+                  "product": "AutoCAD",
+                  "groupId": "autocad:public-activities",
+                  "engine": "Autodesk.AutoCAD+23, +24, +25, +26",
+                  "risk": "SAFE",
+                  "ioShape": "sourceFile.dwg \u2192 result.json",
+                  "activityRef": "AutoCAD.ExportLayers+prod",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "AutoCADExportLayers",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "sourceFile.dwg",
+                      "output": "result.json"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.AutoCAD+23, +24, +25, +26",
+                      "activityRef": "AutoCAD.ExportLayers+prod",
+                      "note": "No custom AppBundle required \u2014 Autodesk-published activity called directly."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() \u2192 Registry match"
+                    }
+                  },
+                  "description": "Extract the full layer table from a DWG as JSON (name, color, linetype, visibility). Useful for CAD standards auditing and metadata pipelines. No custom AppBundle required.",
+                  "apiId": "engine:AutoCAD",
+                  "capabilityGroupId": "autocad:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "export-layer-list",
+                      "displayName": "Export Layer List",
+                      "description": "Extract all layers from a DWG as a JSON array with name, color, linetype, and visibility state for each layer.",
+                      "capabilityId": "autocad:AutoCADExportLayers",
+                      "groupId": "autocad:public-activities",
+                      "product": "AutoCAD",
+                      "engine": "Autodesk.AutoCAD+23, +24, +25, +26",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.json",
+                      "ioShape": "sourceFile.dwg \u2192 result.json",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "autocad.public.export-layer-list",
+                      "callable": false,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "UNVERIFIED \u2014 activity not published",
+                      "workItemTemplate": {
+                        "activityId": "AutoCAD.ExportLayers+prod",
+                        "arguments": {
+                          "HostDwg": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "Result": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "note": "NOT CALLABLE \u2014 AutoCAD.ExportLayers+prod is not published by Autodesk (404 confirmed post-restart). Use autocad:AutoCADDrawingMetadataExtraction / extract-layer-table instead \u2014 returns layer name, color, linetype, visibility. Fallback: capability=autocad:AutoCADDrawingMetadataExtraction operation=extract-layer-table"
+                },
+                {
+                  "id": "autocad:AutoCADExportBlockData",
+                  "alias": "AutoCADExportBlockData",
+                  "qualifiedName": "com.autodesk.public.autocad.AutoCADExportBlockData",
+                  "version": "1.0.0",
+                  "product": "AutoCAD",
+                  "groupId": "autocad:public-activities",
+                  "engine": "Autodesk.AutoCAD+23, +24, +25, +26",
+                  "risk": "SAFE",
+                  "ioShape": "sourceFile.dwg \u2192 result.json",
+                  "activityRef": "AutoCAD.ExportBlockData+prod",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "AutoCADExportBlockData",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "sourceFile.dwg",
+                      "output": "result.json"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.AutoCAD+23, +24, +25, +26",
+                      "activityRef": "AutoCAD.ExportBlockData+prod",
+                      "note": "No custom AppBundle required \u2014 Autodesk-published activity called directly."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() \u2192 Registry match"
+                    }
+                  },
+                  "description": "Extract all block references and attribute data from a DWG as JSON. Returns block name, insertion point, and attribute tag/value pairs. Ideal for title-block extraction and equipment schedule workflows. No custom AppBundle required.",
+                  "apiId": "engine:AutoCAD",
+                  "capabilityGroupId": "autocad:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "export-block-attribute-data",
+                      "displayName": "Export Block Attribute Data",
+                      "description": "Extract all block references and their attribute tag/value pairs from a DWG as a JSON array, including block name and insertion point.",
+                      "capabilityId": "autocad:AutoCADExportBlockData",
+                      "groupId": "autocad:public-activities",
+                      "product": "AutoCAD",
+                      "engine": "Autodesk.AutoCAD+23, +24, +25, +26",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.json",
+                      "ioShape": "sourceFile.dwg \u2192 result.json",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "autocad.public.export-block-attribute-data",
+                      "callable": false,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "UNVERIFIED \u2014 activity not published",
+                      "workItemTemplate": {
+                        "activityId": "AutoCAD.ExportBlockData+prod",
+                        "arguments": {
+                          "HostDwg": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "Result": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "note": "NOT CALLABLE \u2014 AutoCAD.ExportBlockData+prod is not published by Autodesk (404 confirmed post-restart). Use autocad:AutoCADDrawingMetadataExtraction / extract-symbol-table-inventory for block definitions, or autocad:AutoCADBlockAttributeExtraction / extract-block-attribute-values for attribute data. Fallback: capability=autocad:AutoCADDrawingMetadataExtraction operation=extract-symbol-table-inventory"
                 }
               ]
             },
@@ -13837,8 +14373,8 @@
               "defaultActivityTemplate": "activity.custom.readonly",
               "defaultConfigTemplate": "config.custom.params",
               "defaultWorkItemTemplate": "workitem.custom.callable",
-              "capabilityCount": 2,
-              "operationCount": 3,
+              "capabilityCount": 4,
+              "operationCount": 5,
               "capabilities": [
                 {
                   "id": "revit:RevitExtractor",
@@ -13941,13 +14477,11 @@
                           },
                           "resultJson": {
                             "url": "{signed-output-url}",
-                            "verb": "put",
-                            "localName": "result.json"
+                            "verb": "put"
                           },
                           "resultCsv": {
                             "url": "{signed-output-url}",
-                            "verb": "put",
-                            "localName": "result.csv"
+                            "verb": "put"
                           }
                         }
                       }
@@ -14086,13 +14620,11 @@
                           },
                           "resultZip": {
                             "url": "{signed-output-url}",
-                            "verb": "put",
-                            "localName": "result.zip"
+                            "verb": "put"
                           },
                           "resultJson": {
                             "url": "{signed-output-url}",
-                            "verb": "put",
-                            "localName": "result.json"
+                            "verb": "put"
                           }
                         }
                       }
@@ -14132,18 +14664,419 @@
                           },
                           "resultZip": {
                             "url": "{signed-output-url}",
-                            "verb": "put",
-                            "localName": "result.zip"
+                            "verb": "put"
                           },
                           "resultJson": {
                             "url": "{signed-output-url}",
-                            "verb": "put",
-                            "localName": "result.json"
+                            "verb": "put"
                           }
                         }
                       }
                     }
                   ]
+                },
+                {
+                  "id": "revit:RevitSheetList",
+                  "alias": "ExtractRevitSheetListTD",
+                  "qualifiedName": "com.autodesk.revit.ExtractRevitSheetListTD",
+                  "version": "1.0.0",
+                  "product": "Revit",
+                  "groupId": "revit:custom-app-bundles",
+                  "engine": "Autodesk.Revit+2026",
+                  "risk": "SAFE",
+                  "ioShape": "rvtFile.rvt \u2192 result.json",
+                  "rawSourceSnippet": "CAPABILITY: revit:RevitSheetList\nRisk: SAFE\nI/O: rvtFile.rvt \u2192 result.json\nEngine: Autodesk.Revit+2026\n",
+                  "contract": {
+                    "identity": {
+                      "name": "RevitSheetList",
+                      "group": "custom-app-bundles",
+                      "scope": "Engine API"
+                    },
+                    "io": {
+                      "input": "rvtFile.rvt",
+                      "output": "result.json"
+                    },
+                    "execution": {
+                      "accessPattern": "AppBundle",
+                      "interface": "Autodesk.Revit+2026"
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() \u2192 Registry match"
+                    }
+                  },
+                  "description": "Export every sheet in an RVT (number, name, element id) plus a sheet count, to JSON. Custom AppBundle (IExternalDBApplication).",
+                  "apiId": "engine:Revit",
+                  "capabilityGroupId": "revit:custom-app-bundles",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "extract-sheet-list",
+                      "displayName": "Extract Sheet List",
+                      "description": "Return all ViewSheets with number, name, and id, plus SheetCount.",
+                      "capabilityId": "revit:RevitSheetList",
+                      "groupId": "revit:custom-app-bundles",
+                      "product": "Revit",
+                      "engine": "Autodesk.Revit+2026",
+                      "risk": "SAFE",
+                      "outputContract": "Structured JSON result",
+                      "ioShape": "rvtFile.rvt \u2192 result.json",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "revit.extract-sheet-list",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "VERIFIED",
+                      "workItemArguments": {
+                        "rvtFile": {
+                          "verb": "get"
+                        },
+                        "resultJson": {
+                          "verb": "put",
+                          "localName": "result.json"
+                        }
+                      }
+                    }
+                  ],
+                  "provenance": "Published by /appbuilder test-drive; activity exists in APS as {NICKNAME}.ExtractRevitSheetListTD+prod"
+                },
+                {
+                  "id": "revit:RevitIFCExport",
+                  "alias": "RevitIFCExport",
+                  "qualifiedName": "com.aps.custom.revit.RevitIFCExport",
+                  "version": "1.0.0",
+                  "product": "Revit",
+                  "groupId": "revit:custom-app-bundles",
+                  "engine": "Revit 2026",
+                  "risk": "SAFE",
+                  "ioShape": "sourceFile.rvt [+ params.json] \u2192 result.ifc + result.json",
+                  "bundleRef": "{NICKNAME}.RevitIFCExport+prod",
+                  "activityRef": "{NICKNAME}.ExportRvtToIFC+prod",
+                  "sourceRepo": "https://github.com/NYedekar/APS_CapabilityAppBundles",
+                  "runtimeRouting": {
+                    "configFile": "params.json",
+                    "operationField": null,
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "Revit IFC Export",
+                      "group": "custom-app-bundles",
+                      "scope": "Custom AppBundle"
+                    },
+                    "io": {
+                      "input": "sourceFile.rvt [+ params.json]",
+                      "output": "result.ifc + result.json"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-WorkItem",
+                      "interface": "Revit 2026",
+                      "activityRef": "{NICKNAME}.ExportRvtToIFC+prod",
+                      "workItemTemplate": {
+                        "activityId": "{NICKNAME}.ExportRvtToIFC+prod",
+                        "arguments": {
+                          "rvtFile": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "params": {
+                            "url": "{signed-params-url}",
+                            "verb": "get"
+                          },
+                          "ifcFile": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          },
+                          "resultJson": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          }
+                        }
+                      }
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() \u2192 Registry match"
+                    }
+                  },
+                  "description": "Convert or export a Revit model (.rvt) to IFC format for open BIM interoperability and model exchange. Uses APS Design Automation with the built-in Revit IFC exporter. Configurable via optional params.json: IFC schema version (IFC2x3CV2 | IFC2x3 | IFC4), base quantities (QTO), wall/column splitting, space boundaries. Outputs result.ifc + result.json. Use when the user wants to: share a Revit model with non-Revit tools, export for coordination or clash detection, convert RVT to an open standard format, or prepare a model for energy analysis or downstream BIM handoff.",
+                  "note": "Trigger phrases: convert rvt to ifc, export revit to ifc, ifc export, open bim, interoperability, format conversion, revit to open format, share revit model, coordination model, clash detection export, buildingsmart.",
+                  "apiId": "engine:Revit",
+                  "capabilityGroupId": "revit:custom-app-bundles",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "export-to-ifc",
+                      "displayName": "Export Revit Model to IFC",
+                      "description": "Convert a Revit .rvt file to IFC for open BIM interoperability and model exchange. Supports IFC2x3 Coordination View 2.0 (default), IFC2x3, and IFC4. Use when the user asks to export, convert, or share a Revit model in IFC format, prepare for clash detection, or hand off to non-Revit tools. Outputs result.ifc (IFC file) and result.json (manifest with success, fileSizeBytes, ifcVersion, documentTitle).",
+                      "capabilityId": "revit:RevitIFCExport",
+                      "groupId": "revit:custom-app-bundles",
+                      "product": "Revit",
+                      "engine": "Revit 2026",
+                      "risk": "SAFE",
+                      "configSchema": "{\"ifcVersion\": \"IFC2x3CV2 | IFC2x3 | IFC4\", \"exportBaseQuantities\": false, \"wallAndColumnSplitting\": false, \"spaceBoundaryLevel\": 0}",
+                      "outputContract": "result.ifc (IFC file) + result.json ({success, ifcVersion, documentTitle, outputFile, fileSizeBytes, error})",
+                      "ioShape": "sourceFile.rvt [+ params.json] \u2192 result.ifc + result.json",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "revit.custom.export-to-ifc",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "VERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "{NICKNAME}.ExportRvtToIFC+prod",
+                        "arguments": {
+                          "rvtFile": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "params": {
+                            "url": "{signed-params-url}",
+                            "verb": "get"
+                          },
+                          "ifcFile": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          },
+                          "resultJson": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "revit:public-activities",
+              "groupNumber": "10",
+              "displayName": "PUBLIC ACTIVITIES",
+              "product": "Revit",
+              "domainId": "revit",
+              "risk": "SAFE",
+              "ioShape": "sourceFile \u2192 output (format varies by activity)",
+              "approvalPolicy": "auto-approve",
+              "batchingPolicy": "batch-supported",
+              "defaultActivityTemplate": "activity.autodesk.public",
+              "defaultConfigTemplate": null,
+              "defaultWorkItemTemplate": "workitem.autodesk.public",
+              "note": "Autodesk-published Revit activities. No custom AppBundle required. Call activityId directly in WorkItem.",
+              "capabilityCount": 2,
+              "operationCount": 2,
+              "capabilities": [
+                {
+                  "id": "revit:RevitExtractThumbnail",
+                  "alias": "RevitExtractThumbnail",
+                  "qualifiedName": "com.autodesk.public.revit.RevitExtractThumbnail",
+                  "version": "1.0.0",
+                  "product": "Revit",
+                  "groupId": "revit:public-activities",
+                  "engine": "Autodesk.Revit+2022, +2023, +2024, +2025",
+                  "risk": "SAFE",
+                  "ioShape": "sourceFile.rvt \u2192 result.png",
+                  "activityRef": "Revit.ExtractThumbnail+prod",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "RevitExtractThumbnail",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "sourceFile.rvt",
+                      "output": "result.png"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.Revit+2022, +2023, +2024, +2025",
+                      "activityRef": "Revit.ExtractThumbnail+prod",
+                      "note": "No custom AppBundle required \u2014 Autodesk-published activity called directly."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() \u2192 Registry match"
+                    }
+                  },
+                  "description": "Extract a PNG thumbnail from a Revit model (default 3D view or designated view). Faster than a full Model Derivative translation for preview images. No custom AppBundle required.",
+                  "apiId": "engine:Revit",
+                  "capabilityGroupId": "revit:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "extract-revit-thumbnail",
+                      "displayName": "Extract Revit Thumbnail",
+                      "description": "Render a PNG preview image from the Revit model's default 3D view or a designated view.",
+                      "capabilityId": "revit:RevitExtractThumbnail",
+                      "groupId": "revit:public-activities",
+                      "product": "Revit",
+                      "engine": "Autodesk.Revit+2022, +2023, +2024, +2025",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.png",
+                      "ioShape": "sourceFile.rvt \u2192 result.png",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "revit.public.extract-revit-thumbnail",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "UNVERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "Revit.ExtractThumbnail+prod",
+                        "arguments": {
+                          "rvtFile": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "Result": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "note": "Activity: Revit.ExtractThumbnail+prod. Revit model thumbnail / preview image. Keywords: thumbnail preview PNG RVT Revit image 3D view render visual."
+                },
+                {
+                  "id": "revit:RevitExportIFC",
+                  "alias": "RevitExportIFC",
+                  "qualifiedName": "com.autodesk.public.revit.RevitExportIFC",
+                  "version": "1.0.0",
+                  "product": "Revit",
+                  "groupId": "revit:public-activities",
+                  "engine": "Autodesk.Revit+2022, +2023, +2024, +2025",
+                  "risk": "SAFE",
+                  "ioShape": "sourceFile.rvt + ifcSettings.json \u2192 result.ifc",
+                  "activityRef": "Revit.ExportIFC+prod",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "RevitExportIFC",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "sourceFile.rvt + ifcSettings.json",
+                      "output": "result.ifc"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.Revit+2022, +2023, +2024, +2025",
+                      "activityRef": "Revit.ExportIFC+prod",
+                      "note": "No custom AppBundle required \u2014 Autodesk-published activity called directly."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() \u2192 Registry match"
+                    }
+                  },
+                  "description": "Export a Revit model to IFC format. Optional ifcSettings.json specifies IFC schema version (IFC2x3/IFC4) and export setup name. Supports built-in Revit IFC export setups by name. No custom AppBundle required.",
+                  "apiId": "engine:Revit",
+                  "capabilityGroupId": "revit:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "export-revit-to-ifc",
+                      "displayName": "Export Revit Model to IFC",
+                      "description": "Export a Revit model to IFC. Optional ifcSettings.json controls schema version (IFC2x3/IFC4) and export setup name. Uses Revit's built-in IFC exporter.",
+                      "capabilityId": "revit:RevitExportIFC",
+                      "groupId": "revit:public-activities",
+                      "product": "Revit",
+                      "engine": "Autodesk.Revit+2022, +2023, +2024, +2025",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.ifc",
+                      "ioShape": "sourceFile.rvt + ifcSettings.json \u2192 result.ifc",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "revit.public.export-revit-to-ifc",
+                      "callable": false,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "UNVERIFIED \u2014 activity not published",
+                      "workItemTemplate": {
+                        "activityId": "Revit.ExportIFC+prod",
+                        "arguments": {
+                          "rvtFile": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "IfcSettings": {
+                            "url": "{signed-params-url}",
+                            "verb": "get"
+                          },
+                          "Result": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "note": "NOT CALLABLE \u2014 Revit.ExportIFC+prod is not published by Autodesk (404 confirmed live test). Use aps:md.jobs / start_translation_job with outputType=ifc for RVT\u2192IFC conversion via Model Derivative instead. Fallback: capability=aps:md.jobs operation=start_translation_job args={outputType:'ifc'}"
                 }
               ]
             }
@@ -28392,6 +29325,205 @@
                   ]
                 }
               ]
+            },
+            {
+              "id": "inventor:public-activities",
+              "groupNumber": "17",
+              "displayName": "PUBLIC ACTIVITIES",
+              "product": "Inventor",
+              "domainId": "inventor",
+              "risk": "SAFE",
+              "ioShape": "sourceFile \u2192 output (format varies by activity)",
+              "approvalPolicy": "auto-approve",
+              "batchingPolicy": "batch-supported",
+              "defaultActivityTemplate": "activity.autodesk.public",
+              "defaultConfigTemplate": null,
+              "defaultWorkItemTemplate": "workitem.autodesk.public",
+              "note": "Autodesk-published Inventor activities. No custom AppBundle required. Call activityId directly in WorkItem.",
+              "capabilityCount": 2,
+              "operationCount": 2,
+              "capabilities": [
+                {
+                  "id": "inventor:InventorExtractThumbnail",
+                  "alias": "InventorExtractThumbnail",
+                  "qualifiedName": "com.autodesk.public.inventor.InventorExtractThumbnail",
+                  "version": "1.0.0",
+                  "product": "Inventor",
+                  "groupId": "inventor:public-activities",
+                  "engine": "Autodesk.Inventor+2022, +2023, +2024, +2025, +2026",
+                  "risk": "SAFE",
+                  "ioShape": "sourceFile.ipt_or_iam \u2192 result.png",
+                  "activityRef": "Inventor.ExtractThumbnail+prod",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "InventorExtractThumbnail",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "sourceFile.ipt_or_iam",
+                      "output": "result.png"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.Inventor+2022, +2023, +2024, +2025, +2026",
+                      "activityRef": "Inventor.ExtractThumbnail+prod",
+                      "note": "No custom AppBundle required \u2014 Autodesk-published activity called directly."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() \u2192 Registry match"
+                    }
+                  },
+                  "description": "Extract a PNG thumbnail from an Inventor part (IPT) or assembly (IAM) file. No custom AppBundle required.",
+                  "apiId": "engine:Inventor",
+                  "capabilityGroupId": "inventor:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "extract-inventor-thumbnail",
+                      "displayName": "Extract Inventor Thumbnail",
+                      "description": "Render a PNG preview image from an Inventor part (IPT) or assembly (IAM) file.",
+                      "capabilityId": "inventor:InventorExtractThumbnail",
+                      "groupId": "inventor:public-activities",
+                      "product": "Inventor",
+                      "engine": "Autodesk.Inventor+2022, +2023, +2024, +2025, +2026",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.png",
+                      "ioShape": "sourceFile.ipt_or_iam \u2192 result.png",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "inventor.public.extract-inventor-thumbnail",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "UNVERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "Inventor.ExtractThumbnail+prod",
+                        "arguments": {
+                          "InventorDoc": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "Result": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "note": "Activity: Inventor.ExtractThumbnail+prod. Inventor part or assembly thumbnail / preview. Keywords: thumbnail preview PNG IPT IAM Inventor part assembly image render."
+                },
+                {
+                  "id": "inventor:InventorExportBOM",
+                  "alias": "InventorExportBOM",
+                  "qualifiedName": "com.autodesk.public.inventor.InventorExportBOM",
+                  "version": "1.0.0",
+                  "product": "Inventor",
+                  "groupId": "inventor:public-activities",
+                  "engine": "Autodesk.Inventor+2022, +2023, +2024, +2025, +2026",
+                  "risk": "SAFE",
+                  "ioShape": "sourceFile.iam \u2192 result.json",
+                  "activityRef": "Inventor.ExportBOM+prod",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "InventorExportBOM",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "sourceFile.iam",
+                      "output": "result.json"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.Inventor+2022, +2023, +2024, +2025, +2026",
+                      "activityRef": "Inventor.ExportBOM+prod",
+                      "note": "No custom AppBundle required \u2014 Autodesk-published activity called directly."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() \u2192 Registry match"
+                    }
+                  },
+                  "description": "Extract the BOM from an Inventor assembly (IAM) as JSON (part number, description, quantity, material, mass). Input must be an assembly (IAM), not a part (IPT). No custom AppBundle required.",
+                  "apiId": "engine:Inventor",
+                  "capabilityGroupId": "inventor:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "export-bill-of-materials",
+                      "displayName": "Export Bill of Materials",
+                      "description": "Extract the BOM from an Inventor assembly (IAM) as a JSON array with part number, description, quantity, material, and mass for each component.",
+                      "capabilityId": "inventor:InventorExportBOM",
+                      "groupId": "inventor:public-activities",
+                      "product": "Inventor",
+                      "engine": "Autodesk.Inventor+2022, +2023, +2024, +2025, +2026",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.json",
+                      "ioShape": "sourceFile.iam \u2192 result.json",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "inventor.public.export-bill-of-materials",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "UNVERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "Inventor.ExportBOM+prod",
+                        "arguments": {
+                          "InventorDoc": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "Result": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "note": "Activity: Inventor.ExportBOM+prod. Inventor assembly Bill of Materials export. Keywords: BOM bill of materials assembly IAM parts list quantity mass ERP PLM JSON."
+                }
+              ]
             }
           ]
         },
@@ -30049,8 +31181,8 @@
               "defaultConfigTemplate": null,
               "defaultWorkItemTemplate": "workitem.autodesk.public",
               "note": "Autodesk-published 3ds Max activities. UVUnwrapMesh requires the Autodesk-published 3dsMax.UVUnwrap AppBundle.",
-              "capabilityCount": 3,
-              "operationCount": 3,
+              "capabilityCount": 4,
+              "operationCount": 4,
               "capabilities": [
                 {
                   "id": "3dsmax:3dsMaxUVUnwrapMeshProd",
@@ -30320,6 +31452,96 @@
                       }
                     }
                   ]
+                },
+                {
+                  "id": "3dsmax:3dsMaxExtractThumbnail",
+                  "alias": "3dsMaxExtractThumbnail",
+                  "qualifiedName": "com.autodesk.public.3dsmax.3dsMaxExtractThumbnail",
+                  "version": "1.0.0",
+                  "product": "3dsMax",
+                  "groupId": "3dsmax:public-activities",
+                  "engine": "Autodesk.3dsMax+2022, +2023, +2024, +2025",
+                  "risk": "SAFE",
+                  "ioShape": "sourceFile.max \u2192 result.png",
+                  "activityRef": "3dsMax.ExtractThumbnail+prod",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "3dsMaxExtractThumbnail",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "sourceFile.max",
+                      "output": "result.png"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.3dsMax+2022, +2023, +2024, +2025",
+                      "activityRef": "3dsMax.ExtractThumbnail+prod",
+                      "note": "No custom AppBundle required \u2014 Autodesk-published activity called directly."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() \u2192 Registry match"
+                    }
+                  },
+                  "description": "Render a PNG thumbnail from a 3ds Max scene file (default camera or active viewport). No custom AppBundle required.",
+                  "apiId": "engine:3dsMax",
+                  "capabilityGroupId": "3dsmax:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "extract-3dsmax-thumbnail",
+                      "displayName": "Extract 3ds Max Thumbnail",
+                      "description": "Render a PNG preview image from a 3ds Max scene file using the default camera or active viewport.",
+                      "capabilityId": "3dsmax:3dsMaxExtractThumbnail",
+                      "groupId": "3dsmax:public-activities",
+                      "product": "3dsMax",
+                      "engine": "Autodesk.3dsMax+2022, +2023, +2024, +2025",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.png",
+                      "ioShape": "sourceFile.max \u2192 result.png",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "3dsmax.public.extract-3dsmax-thumbnail",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "UNVERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "3dsMax.ExtractThumbnail+prod",
+                        "arguments": {
+                          "SceneFile": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "Result": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "note": "Activity: 3dsMax.ExtractThumbnail+prod. 3ds Max scene thumbnail / preview. Keywords: thumbnail preview PNG MAX 3dsMax scene camera viewport render image."
                 }
               ]
             }
