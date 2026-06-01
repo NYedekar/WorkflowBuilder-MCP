@@ -189,9 +189,6 @@ No file — just an APS API call or info question?
 # Autodesk internal
 git clone https://git.autodesk.com/yedekan/WorkflowSkills-MCP.git
 
-# or GitHub
-git clone https://github.com/NYedekar/WorkflowSkills-MCP.git
-
 cd WorkflowSkills-MCP
 npm install
 npm run build
@@ -367,7 +364,6 @@ Product Manager, Autodesk
 
 Open an issue:
 - Autodesk internal: [git.autodesk.com/yedekan/WorkflowSkills-MCP/issues](https://git.autodesk.com/yedekan/WorkflowSkills-MCP/issues)
-- GitHub: [github.com/NYedekar/WorkflowSkills-MCP/issues](https://github.com/NYedekar/WorkflowSkills-MCP/issues)
 
 ---
 
