@@ -14821,7 +14821,8 @@
                       "discovery": "get_capability() \u2192 Registry match"
                     }
                   },
-                  "description": "Exports a Revit model (.rvt) to IFC format via APS Design Automation using the built-in Revit IFC exporter (IFCExportOptions / Document.Export). Optional params.json controls IFC version (IFC2x3CV2|IFC2x3|IFC4), exportBaseQuantities, wallAndColumnSplitting, and spaceBoundaryLevel. Outputs result.ifc (the IFC file) + result.json (manifest with success, ifcVersion, documentTitle, fileSizeBytes).",
+                  "description": "Convert or export a Revit model (.rvt) to IFC format for open BIM interoperability and model exchange. Uses APS Design Automation with the built-in Revit IFC exporter. Configurable via optional params.json: IFC schema version (IFC2x3CV2 | IFC2x3 | IFC4), base quantities (QTO), wall/column splitting, space boundaries. Outputs result.ifc + result.json. Use when the user wants to: share a Revit model with non-Revit tools, export for coordination or clash detection, convert RVT to an open standard format, or prepare a model for energy analysis or downstream BIM handoff.",
+                  "note": "Trigger phrases: convert rvt to ifc, export revit to ifc, ifc export, open bim, interoperability, format conversion, revit to open format, share revit model, coordination model, clash detection export, buildingsmart.",
                   "apiId": "engine:Revit",
                   "capabilityGroupId": "revit:custom-app-bundles",
                   "authFlows": [
@@ -14831,7 +14832,7 @@
                     {
                       "operationId": "export-to-ifc",
                       "displayName": "Export Revit Model to IFC",
-                      "description": "Converts a .rvt file to IFC format. IFC version and export options are controlled via optional params.json. Default is IFC2x3 Coordination View 2.0. Outputs result.ifc and result.json manifest.",
+                      "description": "Convert a Revit .rvt file to IFC for open BIM interoperability and model exchange. Supports IFC2x3 Coordination View 2.0 (default), IFC2x3, and IFC4. Use when the user asks to export, convert, or share a Revit model in IFC format, prepare for clash detection, or hand off to non-Revit tools. Outputs result.ifc (IFC file) and result.json (manifest with success, fileSizeBytes, ifcVersion, documentTitle).",
                       "capabilityId": "revit:RevitIFCExport",
                       "groupId": "revit:custom-app-bundles",
                       "product": "Revit",
