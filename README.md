@@ -1,8 +1,8 @@
-# WorkflowSkills MCP
+# Workflow Builder MCP
 
 > **Talk to Autodesk files and APIs from Claude — no code, no scripting, no manual API calls.**
 
-WorkflowSkills MCP is an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that connects Claude directly to Autodesk Platform Services (APS). Drop a DWG, RVT, IPT, IFC, or any other Autodesk file into a conversation and ask Claude to translate it, extract its data, run cloud processing jobs, or call APS REST APIs — all in plain language.
+Workflow Builder MCP is an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that connects Claude directly to Autodesk Platform Services (APS). Drop a DWG, RVT, IPT, IFC, or any other Autodesk file into a conversation and ask Claude to translate it, extract its data, run cloud processing jobs, or call APS REST APIs — all in plain language.
 
 ---
 
@@ -10,12 +10,12 @@ WorkflowSkills MCP is an [MCP (Model Context Protocol)](https://modelcontextprot
 
 ```bash
 # Autodesk internal
-git clone https://git.autodesk.com/yedekan/WorkflowSkills-MCP.git
+git clone https://git.autodesk.com/yedekan/WorkflowBuilder-MCP.git
 
 # or GitHub
-git clone https://github.com/NYedekar/WorkflowSkills-MCP.git
+git clone https://github.com/NYedekar/WorkflowBuilder-MCP.git
 
-cd WorkflowSkills-MCP
+cd WorkflowBuilder-MCP
 npm install
 npm run setup
 ```
@@ -49,7 +49,7 @@ The setup wizard asks for your APS Client ID and Client Secret, validates your c
 
 ## What it does
 
-WorkflowSkills MCP bridges the gap between conversational AI and Autodesk's cloud platform. Instead of writing REST calls, managing OAuth tokens, polling job statuses, and decoding base64 URNs by hand, you describe what you want in plain language and Claude handles the entire workflow.
+Workflow Builder MCP bridges the gap between conversational AI and Autodesk's cloud platform. Instead of writing REST calls, managing OAuth tokens, polling job statuses, and decoding base64 URNs by hand, you describe what you want in plain language and Claude handles the entire workflow.
 
 **Capabilities include:**
 
@@ -60,17 +60,17 @@ WorkflowSkills MCP bridges the gap between conversational AI and Autodesk's clou
 - **Multi-step pipelines** — Chain operations into a DAG (directed acyclic graph): translate a model, extract its metadata, and store the outputs — all in one conversation turn
 - **File storage** — Upload files to APS Object Storage (OSS) and retrieve outputs back to your local machine
 
-Everything happens server-side in the MCP process. Claude's browser sandbox cannot reach Autodesk or S3 directly; WorkflowSkills MCP handles all network calls securely from your Mac.
+Everything happens server-side in the MCP process. Claude's browser sandbox cannot reach Autodesk or S3 directly; Workflow Builder MCP handles all network calls securely from your Mac.
 
 ---
 
 ## Key concepts
 
 ### MCP (Model Context Protocol)
-A standard protocol that lets Claude call external tools. WorkflowSkills MCP runs as a local process on your Mac and exposes tools that Claude can invoke during a conversation. Claude orchestrates the workflow; the MCP server handles authentication, file I/O, and API calls.
+A standard protocol that lets Claude call external tools. Workflow Builder MCP runs as a local process on your Mac and exposes tools that Claude can invoke during a conversation. Claude orchestrates the workflow; the MCP server handles authentication, file I/O, and API calls.
 
 ### APS (Autodesk Platform Services)
-The cloud developer platform that powers Autodesk products. WorkflowSkills MCP uses two APS execution domains:
+The cloud developer platform that powers Autodesk products. Workflow Builder MCP uses two APS execution domains:
 
 | Domain | What it is | How it works |
 |--------|-----------|--------------|
@@ -78,19 +78,19 @@ The cloud developer platform that powers Autodesk products. WorkflowSkills MCP u
 | **Engine-API** (Design Automation) | Cloud compute using Autodesk application engines (AutoCAD, Revit, Inventor, 3ds Max) | WorkItem submitted to DA queue → engine runs custom AppBundle → output files written to OSS |
 
 ### OSS (Object Storage Service)
-APS's managed file store. All file uploads and job outputs live here as `oss://bucket/object` URLs. WorkflowSkills MCP creates transient buckets automatically (24-hour TTL) so you never need to manage storage manually.
+APS's managed file store. All file uploads and job outputs live here as `oss://bucket/object` URLs. Workflow Builder MCP creates transient buckets automatically (24-hour TTL) so you never need to manage storage manually.
 
 ### Capability registry
 A built-in registry of 260+ APS capabilities — each describing a specific operation (e.g. "start SVF2 translation", "extract Revit element data", "create OSS bucket"). When you say "translate this DWG", Claude searches the registry, finds the right capability and operation IDs, and passes them to the execution tools.
 
 ### SVF2
-Autodesk's streaming 3D/2D viewing format. Translating a file to SVF2 produces a derivative that can be loaded into the Autodesk Viewer (browser-based). WorkflowSkills MCP triggers this translation via the Model Derivative API and returns the URN and manifest you need to open the file in any Viewer-based application.
+Autodesk's streaming 3D/2D viewing format. Translating a file to SVF2 produces a derivative that can be loaded into the Autodesk Viewer (browser-based). Workflow Builder MCP triggers this translation via the Model Derivative API and returns the URN and manifest you need to open the file in any Viewer-based application.
 
 ### OAuth 2LO (two-legged)
-WorkflowSkills MCP authenticates with APS using your Client ID and Client Secret via the OAuth 2.0 client credentials flow. Tokens are cached and refreshed automatically. The Client Secret is stored in your OS keychain after first run — it is never written to a file or logged.
+Workflow Builder MCP authenticates with APS using your Client ID and Client Secret via the OAuth 2.0 client credentials flow. Tokens are cached and refreshed automatically. The Client Secret is stored in your OS keychain after first run — it is never written to a file or logged.
 
 ### OAuth 3LO (three-legged)
-WorkflowSkills MCP now supports authentication for specific APIs with 3LO.
+Workflow Builder MCP now supports authentication for specific APIs with 3LO.
 
 ---
 
@@ -209,12 +209,12 @@ No file — just an APS API call or info question?
 
 ```bash
 # Autodesk internal
-git clone https://git.autodesk.com/yedekan/WorkflowSkills-MCP.git
+git clone https://git.autodesk.com/yedekan/WorkflowBuilder-MCP.git
 
 # or GitHub
-git clone https://github.com/NYedekar/WorkflowSkills-MCP.git
+git clone https://github.com/NYedekar/WorkflowBuilder-MCP.git
 
-cd WorkflowSkills-MCP
+cd WorkflowBuilder-MCP
 npm install
 npm run build
 ```
@@ -269,7 +269,7 @@ AppBundle source code and CI pipelines live in a companion repository:
 
 3. **Trigger the CI workflows** — go to **Actions** and run each `Build & Publish` workflow manually, or push any change to `main`. The workflows build the plugin DLLs on Windows, zip them into `.bundle` packages, and upload + register them in your APS account automatically.
 
-Once deployed, all DA capabilities in WorkflowSkills MCP will invoke your own AppBundles automatically — no further configuration needed.
+Once deployed, all DA capabilities in Workflow Builder MCP will invoke your own AppBundles automatically — no further configuration needed.
 
 > **Platform-API capabilities** (Model Derivative, Data Management, ACC, OSS, BIM 360, etc.) do **not** require AppBundles. They call APS REST APIs directly and work immediately after `npm run setup`.
 
@@ -283,7 +283,7 @@ If you prefer to configure manually, add the following to `~/.claude.json` under
 "workflow-builder": {
   "type": "stdio",
   "command": "node",
-  "args": ["/absolute/path/to/WorkflowSkills-MCP/dist/index.js"],
+  "args": ["/absolute/path/to/WorkflowBuilder-MCP/dist/index.js"],
   "env": {
     "APS_CLIENT_ID": "YOUR_CLIENT_ID",
     "APS_CLIENT_SECRET": "YOUR_CLIENT_SECRET"
@@ -291,7 +291,7 @@ If you prefer to configure manually, add the following to `~/.claude.json` under
 }
 ```
 
-Replace `/absolute/path/to/WorkflowSkills-MCP` with the actual path. Run `which node` to find your Node.js binary path if needed. A **full quit** of Claude is required after editing `~/.claude.json`.
+Replace `/absolute/path/to/WorkflowBuilder-MCP` with the actual path. Run `which node` to find your Node.js binary path if needed. A **full quit** of Claude is required after editing `~/.claude.json`.
 
 ---
 
@@ -307,7 +307,7 @@ Replace `/absolute/path/to/WorkflowSkills-MCP` with the actual path. Run `which 
 5. Copy the **Client ID** and **Client Secret** from the app's Credentials tab
 6. Pass them to `npm run setup` or add them to `~/.claude.json` manually
 
-> **Important:** Each user running WorkflowSkills MCP needs their own APS application and credentials. Do not share Client Secrets.
+> **Important:** Each user running Workflow Builder MCP needs their own APS application and credentials. Do not share Client Secrets.
 
 ---
 
@@ -316,7 +316,7 @@ Replace `/absolute/path/to/WorkflowSkills-MCP` with the actual path. Run `which 
 ### Claude doesn't see the workflow-builder tools
 - Confirm you fully quit and relaunched Claude (Cmd+Q on Mac, not just closing the window)
 - Check that `~/.claude.json` contains the `workflow-builder` entry under `mcpServers`
-- Verify the path in `args` points to the built `dist/index.js` — run `ls /path/to/WorkflowSkills-MCP/dist/index.js` to confirm it exists
+- Verify the path in `args` points to the built `dist/index.js` — run `ls /path/to/WorkflowBuilder-MCP/dist/index.js` to confirm it exists
 
 ### `authenticate_aps` returns an error
 - Double-check your Client ID and Client Secret at [aps.autodesk.com/myapps](https://aps.autodesk.com/myapps)
@@ -389,8 +389,8 @@ Product Manager, Autodesk
 [neeraj.yedekar@autodesk.com](mailto:neeraj.yedekar@autodesk.com)
 
 Open an issue:
-- Autodesk internal: [git.autodesk.com/yedekan/WorkflowSkills-MCP/issues](https://git.autodesk.com/yedekan/WorkflowSkills-MCP/issues)
-- GitHub: [github.com/NYedekar/WorkflowSkills-MCP/issues](https://github.com/NYedekar/WorkflowSkills-MCP/issues)
+- Autodesk internal: [git.autodesk.com/yedekan/WorkflowBuilder-MCP/issues](https://git.autodesk.com/yedekan/WorkflowBuilder-MCP/issues)
+- GitHub: [github.com/NYedekar/WorkflowBuilder-MCP/issues](https://github.com/NYedekar/WorkflowBuilder-MCP/issues)
 
 ---
 

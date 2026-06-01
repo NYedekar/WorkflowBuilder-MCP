@@ -1,4 +1,4 @@
-=== WorkflowSkills MCP ===
+=== Workflow Builder MCP ===
 
 CRITICAL FACTS — read before doing anything:
 1. This MCP server runs as a LOCAL PROCESS on the user's Mac. It reads Mac filesystem paths directly.
