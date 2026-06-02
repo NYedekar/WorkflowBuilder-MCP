@@ -6,7 +6,32 @@ CRITICAL FACTS — read before doing anything:
 3. NEVER ask for permission before calling authenticate_aps — just call it. Credentials are pre-configured.
 4. Local paths that work: ~/Downloads/, /Users/yedekan/..., ~/Library/CloudStorage/OneDrive-Autodesk/...
 
-MANDATORY TRIGGER — call get_capability as your VERY FIRST action (before any response, any reasoning, any bash, any Python) when ANY of these file extensions appear anywhere in the conversation — attached, typed as a path, or mentioned by name:
+── SKILL INVOCATION — LEADING "/" ROUTING (check BEFORE get_capability) ──
+
+If the user's message begins with a slash-prefixed slug — "/" immediately followed by a kebab-case
+name (lowercase letters, digits, hyphens only; e.g. /dwg-to-pdf-extract-layers-and-blocks) — treat it
+as an invocation of a SAVED WORKFLOW, NOT a capability search and NOT a file path. This takes
+PRECEDENCE over the MANDATORY get_capability trigger below.
+
+  DISAMBIGUATION: a real skill slug has NO further "/" and NO ".". A leading "/" that is actually a
+  filesystem path (e.g. /Users/you/file.dwg, /tmp/x) is NOT a skill — handle it normally.
+
+  Steps when a /slug is detected:
+  1. Ensure the saved-workflow tools are loaded. If your client defers MCP tools (loads them via
+     tool_search/ToolSearch), call tool_search("list saved workflows run saved workflow") FIRST.
+     Do NOT derive a capability-keyword search from the slug text.
+  2. Call list_saved_workflows and look for the slug.
+  3. MATCH → call run_saved_workflow(slug="<slug>", inputs={...}). Pull required inputs (e.g. the file
+     path) from the rest of the message; ask the user for any required input that's missing. Then follow
+     the async run_handle protocol (re-invoke with the run_handle until success/failed).
+  4. NO MATCH → tell the user that skill wasn't found, then fall through to normal handling.
+
+Also honor explicit phrasings — "run my <name> workflow/skill", "use the <name> skill", "rerun <name>"
+— with the SAME path (load tools → list_saved_workflows → run_saved_workflow). Do NOT call
+list_saved_workflows on ordinary file tasks that lack a /slug or an explicit "run my saved …" signal.
+
+MANDATORY TRIGGER — call get_capability as your VERY FIRST action (UNLESS the message is a /slug skill
+invocation per SKILL INVOCATION above, which takes precedence) — before any response, any reasoning, any bash, any Python — when ANY of these file extensions appear anywhere in the conversation — attached, typed as a path, or mentioned by name:
 
 RVT RFA RTE RFT DWG DXF DWT DWS DWF DWFX IPT IAM IDW IPN IDE F3D F3Z CAM360 MAX MA MB NWD NWF NWC IFC FBX STEP STP IGES IGS SAT JT WIRE IWMODEL IMX NAS BDF FEM OP2 RCP RCS PTS E57 LAS LAZ ADSK ADSKLIB ATF ASM SMT SMB OBJ STL
 
@@ -217,7 +242,8 @@ Then call save_workflow_as_skill(name, intent, steps, inputs, [description], [au
 list_saved_workflows → shows every saved workflow (slug, intent, inputs).
   • Call it ONLY when the user explicitly asks to see/discover their saved workflows
     ("what skills/workflows have I saved", "list my saved workflows", "do I have a skill for X"),
-    or when you need to find the exact slug to run one and the user didn't give it.
+    when you need to find the exact slug to run one and the user didn't give it, OR to verify a
+    /slug skill invocation exists (see SKILL INVOCATION near the top).
   • DO NOT call it as a default first step. It is NOT part of executing a file task or of saving
     a skill — never call it at the start of a process_file / create_workflow / save_workflow_as_skill
     flow. If the user's request is to DO something (process a file, run a task), go straight to
