@@ -41,6 +41,15 @@ export const processFileSchema = z.object({
         "pass body here to override or extend it. " +
         "Example: { \"output\": { \"formats\": [{ \"type\": \"svf2\", \"views\": [\"2d\"] }] } }. " +
         "Ignored for Engine-API capabilities."),
+    config: z
+        .record(z.unknown())
+        .optional()
+        .default({})
+        .describe("Engine-API config passed through to execute_workflow. " +
+        "Use config.extraInputs to supply optional secondary get-verb inputs beyond the primary file. " +
+        "Example: { \"extraInputs\": { \"paramsFile\": \"oss://bucket/rules.json\" } } " +
+        "passes a rules JSON to CADStandardsChecker alongside the primary DWG. " +
+        "Ignored for REST capabilities."),
 });
 // ── Handler ───────────────────────────────────────────────────────────────
 export async function handleProcessFile(input) {
@@ -142,7 +151,7 @@ export async function handleProcessFile(input) {
         path_params: {},
         query_params: {},
         body: effectiveBody,
-        config: {},
+        config: input.config ?? {},
         inline_args: {},
         output_bucket_policy: "transient",
     });
