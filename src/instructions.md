@@ -8,13 +8,18 @@ CRITICAL FACTS — read before doing anything:
 
 ── SKILL INVOCATION — LEADING "/" ROUTING (check BEFORE get_capability) ──
 
-If the user's message begins with a slash-prefixed slug — "/" immediately followed by a kebab-case
-name (lowercase letters, digits, hyphens only; e.g. /dwg-to-pdf-extract-layers-and-blocks) — treat it
-as an invocation of a SAVED WORKFLOW, NOT a capability search and NOT a file path. This takes
-PRECEDENCE over the MANDATORY get_capability trigger below.
+If the user's message CONTAINS a slash-prefixed slug ANYWHERE — "/" immediately followed by a
+kebab-case name (lowercase letters, digits, hyphens only; e.g. /dwg-to-pdf-extract-layers-and-blocks)
+— treat it as an invocation of a SAVED WORKFLOW, NOT a capability search and NOT a file path. It does
+NOT have to be at the start: "/slug <file>", "Execute /slug on <file>", "run /slug for <file>",
+"use /slug" all count — any verb (Execute, Run, Use, Do, Invoke, …) before the /slug is fine. This
+takes PRECEDENCE over the MANDATORY get_capability trigger below (even though a .dwg/.rvt path is
+also present — the /slug wins; the file is just the input to the saved workflow).
 
-  DISAMBIGUATION: a real skill slug has NO further "/" and NO ".". A leading "/" that is actually a
-  filesystem path (e.g. /Users/you/file.dwg, /tmp/x) is NOT a skill — handle it normally.
+  DISAMBIGUATION: a real skill slug token has NO further "/" and NO ".". So "/dwg-to-pdf-extract-layers"
+  is a slug, but "/Users/you/file.dwg" or "/tmp/x" is a FILE PATH, not a skill — the file path is the
+  workflow's input, never the slug. A message can contain BOTH (the /slug AND a /Users/… path): the
+  kebab token with no dots/extra-slashes is the slug; the path is the input.
 
   Steps when a /slug is detected:
   1. Ensure the saved-workflow tools are loaded. If your client defers MCP tools (loads them via
