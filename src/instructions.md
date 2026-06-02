@@ -206,3 +206,18 @@ Then call save_workflow_as_skill(name, intent, steps, inputs, [description], [au
   • NEVER pass tokens, secrets, or bearer_token in step args — auth is handled at run time.
   • On success: tell the user the new /<slug> command and that a Claude restart refreshes the skill list.
   • On error: read the hint, fix the recipe (e.g. declare a missing {{placeholder}} input), and retry.
+
+── RUN / LIST SAVED WORKFLOWS (run_saved_workflow, list_saved_workflows) ──
+
+list_saved_workflows → shows every saved workflow (slug, intent, inputs).
+
+run_saved_workflow(slug, inputs={...}) → deterministically replays a saved workflow with new
+inputs. The engine validates inputs, uploads file inputs once, substitutes them into the frozen
+steps, threads step outputs, and runs each via execute_workflow — no re-planning needed.
+  • ASYNC: a Design Automation step returns status="pending" with a run_handle. Call
+    run_saved_workflow again with the SAME run_handle (unmodified) — repeat until success/failed,
+    exactly like get_workflow_status. Do not pause or ask between calls.
+  • 3lo_required → call authenticate_aps_3lo, then re-invoke with the run_handle.
+  • This is the deterministic path; invoking the /<slug> skill is the equivalent Claude-driven path.
+  • Note: best for Design Automation + synchronous REST steps. A REST async-job step (e.g. Model
+    Derivative translation) may report done before its job finishes — for those, prefer the /<slug> skill.

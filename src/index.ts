@@ -83,6 +83,14 @@ import {
   saveWorkflowAsSkillSchema,
   handleSaveWorkflowAsSkill,
 } from "./tools/save-workflow-as-skill.js";
+import {
+  listSavedWorkflowsSchema,
+  handleListSavedWorkflows,
+} from "./tools/list-saved-workflows.js";
+import {
+  runSavedWorkflowSchema,
+  handleRunSavedWorkflow,
+} from "./tools/run-saved-workflow.js";
 
 // ─── Server setup ─────────────────────────────────────────────────────────
 
@@ -252,6 +260,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "and writes SKILL.md + workflow.json into the skills directory. NEVER put tokens or secrets in step args.",
         inputSchema: zodToJsonSchema(saveWorkflowAsSkillSchema),
       },
+      {
+        name: "list_saved_workflows",
+        description:
+          "List the workflows the user has saved as skills (via save_workflow_as_skill). " +
+          "Returns each one's slug, name, intent, required/optional inputs, step count, and auth mode. " +
+          "Use to discover what can be re-run with run_saved_workflow.",
+        inputSchema: zodToJsonSchema(listSavedWorkflowsSchema),
+      },
+      {
+        name: "run_saved_workflow",
+        description:
+          "Deterministically replay a saved workflow with new inputs — no need to re-plan the steps. " +
+          "Pass slug + inputs (keyed by the manifest's input keys). The engine validates inputs, uploads file inputs once, " +
+          "substitutes them into the frozen steps, threads outputs between steps, and runs each via execute_workflow. " +
+          "ASYNC: when a Design Automation step is still running, this returns status=pending with a run_handle — " +
+          "call run_saved_workflow again with the SAME run_handle (unmodified) to advance, exactly like get_workflow_status. " +
+          "On 3lo_required: call authenticate_aps_3lo then re-invoke with the run_handle.",
+        inputSchema: zodToJsonSchema(runSavedWorkflowSchema),
+      },
     ],
   };
 });
@@ -312,6 +339,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case "save_workflow_as_skill":
         result = await handleSaveWorkflowAsSkill(saveWorkflowAsSkillSchema.parse(args));
+        break;
+      case "list_saved_workflows":
+        result = await handleListSavedWorkflows(listSavedWorkflowsSchema.parse(args ?? {}));
+        break;
+      case "run_saved_workflow":
+        result = await handleRunSavedWorkflow(runSavedWorkflowSchema.parse(args));
         break;
       default:
         return {
