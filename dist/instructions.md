@@ -207,6 +207,10 @@ Then call save_workflow_as_skill(name, intent, steps, inputs, [description], [au
   • Do NOT call list_saved_workflows before saving — save_workflow_as_skill handles name collisions itself.
   • On success: tell the user the new /<slug> command and that a Claude restart refreshes the skill list.
   • On error: read the hint, fix the recipe (e.g. declare a missing {{placeholder}} input), and retry.
+  • If the user wants the skill to appear in the Claude DESKTOP/web "Skills" panel: there is NO API to
+    auto-upload personal skills to claude.ai (skills do not sync across surfaces). Call
+    export_skill_for_claude(slug) to produce a claude.ai-ready ZIP, then tell the user to upload it via
+    claude.ai/customize/skills → + → Create skill. It then syncs to the Desktop Skills panel.
 
 ── RUN / LIST SAVED WORKFLOWS (run_saved_workflow, list_saved_workflows) ──
 

@@ -31,6 +31,7 @@ import { saveWorkflowAsSkillSchema, handleSaveWorkflowAsSkill, } from "./tools/s
 import { listSavedWorkflowsSchema, handleListSavedWorkflows, } from "./tools/list-saved-workflows.js";
 import { runSavedWorkflowSchema, handleRunSavedWorkflow, } from "./tools/run-saved-workflow.js";
 import { buildPromptList, buildPromptMessages } from "./lib/prompt-builder.js";
+import { exportSkillForClaudeSchema, handleExportSkillForClaude, } from "./tools/export-skill-zip.js";
 // ─── Server setup ─────────────────────────────────────────────────────────
 const server = new Server({
     name: "mcp-workflow-builder",
@@ -208,6 +209,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     "On 3lo_required: call authenticate_aps_3lo then re-invoke with the run_handle.",
                 inputSchema: zodToJsonSchema(runSavedWorkflowSchema),
             },
+            {
+                name: "export_skill_for_claude",
+                description: "Package a saved workflow-skill into a claude.ai-ready ZIP so it can be added to the user's " +
+                    "Claude (Desktop/web) Skills panel. Use when the user wants a saved workflow to appear as a " +
+                    "Skill in Claude Desktop/claude.ai. NOTE: there is NO API to auto-upload personal skills to " +
+                    "claude.ai — this produces a correctly structured ZIP (skill folder as root); the user uploads it " +
+                    "via claude.ai/customize/skills → + → Create skill, after which it syncs to the Desktop Skills panel.",
+                inputSchema: zodToJsonSchema(exportSkillForClaudeSchema),
+            },
         ],
     };
 });
@@ -270,6 +280,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 break;
             case "run_saved_workflow":
                 result = await handleRunSavedWorkflow(runSavedWorkflowSchema.parse(args));
+                break;
+            case "export_skill_for_claude":
+                result = await handleExportSkillForClaude(exportSkillForClaudeSchema.parse(args));
                 break;
             default:
                 return {
