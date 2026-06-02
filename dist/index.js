@@ -183,7 +183,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 name: "list_saved_workflows",
                 description: "List the workflows the user has saved as skills (via save_workflow_as_skill). " +
                     "Returns each one's slug, name, intent, required/optional inputs, step count, and auth mode. " +
-                    "Use to discover what can be re-run with run_saved_workflow.",
+                    "Call ONLY when the user explicitly asks to see/discover their saved workflows, or when you need " +
+                    "a slug to run one and it wasn't given. DO NOT call it as a default first step — it is not part of " +
+                    "executing a file task or saving a skill. For a 'do X' request, go straight to get_capability.",
                 inputSchema: zodToJsonSchema(listSavedWorkflowsSchema),
             },
             {

@@ -204,12 +204,20 @@ How to capture the recipe (you already have it in context):
 Then call save_workflow_as_skill(name, intent, steps, inputs, [description], [auth_mode]).
   • It validates every capability against the registry, derives 2LO/3LO auth, and rejects secrets.
   • NEVER pass tokens, secrets, or bearer_token in step args — auth is handled at run time.
+  • Do NOT call list_saved_workflows before saving — save_workflow_as_skill handles name collisions itself.
   • On success: tell the user the new /<slug> command and that a Claude restart refreshes the skill list.
   • On error: read the hint, fix the recipe (e.g. declare a missing {{placeholder}} input), and retry.
 
 ── RUN / LIST SAVED WORKFLOWS (run_saved_workflow, list_saved_workflows) ──
 
 list_saved_workflows → shows every saved workflow (slug, intent, inputs).
+  • Call it ONLY when the user explicitly asks to see/discover their saved workflows
+    ("what skills/workflows have I saved", "list my saved workflows", "do I have a skill for X"),
+    or when you need to find the exact slug to run one and the user didn't give it.
+  • DO NOT call it as a default first step. It is NOT part of executing a file task or of saving
+    a skill — never call it at the start of a process_file / create_workflow / save_workflow_as_skill
+    flow. If the user's request is to DO something (process a file, run a task), go straight to
+    get_capability — skip list_saved_workflows entirely.
 
 run_saved_workflow(slug, inputs={...}) → deterministically replays a saved workflow with new
 inputs. The engine validates inputs, uploads file inputs once, substitutes them into the frozen
