@@ -1,6 +1,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema, ListPromptsRequestSchema, GetPromptRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
@@ -30,6 +30,7 @@ import { getTokenUsageSchema, handleGetTokenUsage, } from "./tools/get-token-usa
 import { saveWorkflowAsSkillSchema, handleSaveWorkflowAsSkill, } from "./tools/save-workflow-as-skill.js";
 import { listSavedWorkflowsSchema, handleListSavedWorkflows, } from "./tools/list-saved-workflows.js";
 import { runSavedWorkflowSchema, handleRunSavedWorkflow, } from "./tools/run-saved-workflow.js";
+import { buildPromptList, buildPromptMessages } from "./lib/prompt-builder.js";
 // ─── Server setup ─────────────────────────────────────────────────────────
 const server = new Server({
     name: "mcp-workflow-builder",
@@ -37,8 +38,17 @@ const server = new Server({
 }, {
     capabilities: {
         tools: {},
+        prompts: {},
     },
     instructions: SERVER_INSTRUCTIONS,
+});
+// ─── Prompts: saved workflows surfaced as slash commands (any MCP host) ──────
+server.setRequestHandler(ListPromptsRequestSchema, async () => {
+    return { prompts: buildPromptList() };
+});
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    return buildPromptMessages(name, args);
 });
 // ─── Tool list ─────────────────────────────────────────────────────────────
 server.setRequestHandler(ListToolsRequestSchema, async () => {

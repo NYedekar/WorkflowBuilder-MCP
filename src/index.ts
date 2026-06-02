@@ -3,6 +3,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
+  type GetPromptResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { readFileSync } from "fs";
@@ -91,6 +94,7 @@ import {
   runSavedWorkflowSchema,
   handleRunSavedWorkflow,
 } from "./tools/run-saved-workflow.js";
+import { buildPromptList, buildPromptMessages } from "./lib/prompt-builder.js";
 
 // ─── Server setup ─────────────────────────────────────────────────────────
 
@@ -102,10 +106,22 @@ const server = new Server(
   {
     capabilities: {
       tools: {},
+      prompts: {},
     },
     instructions: SERVER_INSTRUCTIONS,
   }
 );
+
+// ─── Prompts: saved workflows surfaced as slash commands (any MCP host) ──────
+
+server.setRequestHandler(ListPromptsRequestSchema, async () => {
+  return { prompts: buildPromptList() };
+});
+
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+  return buildPromptMessages(name, args as Record<string, string> | undefined) as GetPromptResult;
+});
 
 // ─── Tool list ─────────────────────────────────────────────────────────────
 
