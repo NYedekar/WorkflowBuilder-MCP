@@ -1,6 +1,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, ListPromptsRequestSchema, GetPromptRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema, ListPromptsRequestSchema, GetPromptRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
@@ -32,14 +32,21 @@ import { listSavedWorkflowsSchema, handleListSavedWorkflows, } from "./tools/lis
 import { runSavedWorkflowSchema, handleRunSavedWorkflow, } from "./tools/run-saved-workflow.js";
 import { buildPromptList, buildPromptMessages } from "./lib/prompt-builder.js";
 import { exportSkillForClaudeSchema, handleExportSkillForClaude, } from "./tools/export-skill-zip.js";
+import { offerSaveSkillButtonSchema, handleOfferSaveSkillButton, } from "./tools/offer-save-skill-button.js";
+import { SAVE_SKILL_UI_URI, MCP_APP_MIME, SAVE_SKILL_UI_HTML } from "./lib/save-skill-ui.js";
 // ─── Server setup ─────────────────────────────────────────────────────────
 const server = new Server({
     name: "mcp-workflow-builder",
     version: "1.0.0",
 }, {
+    // `extensions` declares MCP Apps support (io.modelcontextprotocol/ui) for the interactive
+    // "Save as skill" button. Cast: the SDK's ServerCapabilities type doesn't yet include the
+    // extensions field, but it is passed through verbatim in the initialize response.
     capabilities: {
         tools: {},
         prompts: {},
+        resources: {},
+        extensions: { "io.modelcontextprotocol/ui": { mimeTypes: [MCP_APP_MIME] } },
     },
     instructions: SERVER_INSTRUCTIONS,
 });
@@ -50,6 +57,25 @@ server.setRequestHandler(ListPromptsRequestSchema, async () => {
 server.setRequestHandler(GetPromptRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     return buildPromptMessages(name, args);
+});
+// ─── Resources: the MCP Apps UI for the "Save as skill" button ───────────────
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    return {
+        resources: [
+            {
+                uri: SAVE_SKILL_UI_URI,
+                name: "Save workflow as skill (button)",
+                mimeType: MCP_APP_MIME,
+                _meta: { ui: { prefersBorder: true } },
+            },
+        ],
+    };
+});
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    if (request.params.uri === SAVE_SKILL_UI_URI) {
+        return { contents: [{ uri: SAVE_SKILL_UI_URI, mimeType: MCP_APP_MIME, text: SAVE_SKILL_UI_HTML }] };
+    }
+    throw new Error(`Unknown resource: ${request.params.uri}`);
 });
 // ─── Tool list ─────────────────────────────────────────────────────────────
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -218,6 +244,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     "via claude.ai/customize/skills → + → Create skill, after which it syncs to the Desktop Skills panel.",
                 inputSchema: zodToJsonSchema(exportSkillForClaudeSchema),
             },
+            {
+                name: "offer_save_skill_button",
+                description: "EXPERIMENTAL (MCP Apps): render an interactive 'Save as skill' button in the conversation. " +
+                    "Use on hosts that support MCP Apps (io.modelcontextprotocol/ui, e.g. Claude Desktop) when offering to save " +
+                    "a just-run workflow. Pass the same recipe you'd pass to save_workflow_as_skill (name, intent, inputs, steps). " +
+                    "The button calls save_workflow_as_skill on click. If the host doesn't render it, fall back to save_workflow_as_skill directly.",
+                inputSchema: zodToJsonSchema(offerSaveSkillButtonSchema),
+                _meta: { ui: { resourceUri: SAVE_SKILL_UI_URI, visibility: ["model", "app"] } },
+            },
         ],
     };
 });
@@ -284,6 +319,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             case "export_skill_for_claude":
                 result = await handleExportSkillForClaude(exportSkillForClaudeSchema.parse(args));
                 break;
+            case "offer_save_skill_button":
+                // Return the CallToolResult directly so structuredContent reaches the MCP Apps iframe
+                // (the generic wrapper below would otherwise stringify everything into a text block).
+                return handleOfferSaveSkillButton(offerSaveSkillButtonSchema.parse(args));
             default:
                 return {
                     content: [{ type: "text", text: JSON.stringify({ error: `Unknown tool: ${name}` }) }],
