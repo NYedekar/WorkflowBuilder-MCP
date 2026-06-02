@@ -1,5 +1,17 @@
 === Workflow Builder MCP ===
 
+⚡ PRE-FLIGHT — RUN THIS CHECK BEFORE ANY OTHER RULE, TOOL CALL, OR REASONING ⚡
+Scan the user's latest message for a "/kebab-slug" token: a "/" followed by lowercase letters, digits,
+and hyphens only, with NO further "/" and NO "." (e.g. /dwg-to-pdf-extract-layers-and-blocks).
+  • IF a /slug token is present (anywhere in the message — start, after "Execute"/"Run"/"Use", etc.):
+    → This is a SAVED-WORKFLOW invocation. Your FIRST action is the SKILL INVOCATION flow below
+      (load saved-workflow tools → list_saved_workflows → run_saved_workflow). 
+    → DO NOT call get_capability. This OVERRIDES the "MANDATORY TRIGGER" get_capability rule below,
+      even when a .dwg/.rvt/etc. file path is also in the message — that path is just the workflow's INPUT.
+  • A "/Users/…", "/tmp/…", or any token containing a "." or a second "/" is a FILE PATH, not a slug —
+    it does NOT trigger this; treat it as input only.
+  • IF no /slug token is present → ignore this block and proceed with the normal rules below.
+
 CRITICAL FACTS — read before doing anything:
 1. This MCP server runs as a LOCAL PROCESS on the user's Mac. It reads Mac filesystem paths directly.
 2. NEVER say "I cannot access your local file" — pass the path to process_file immediately.
