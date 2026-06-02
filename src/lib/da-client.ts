@@ -203,20 +203,11 @@ export async function uploadJsonToOss(
   objectKey: string,
   payload: unknown
 ): Promise<string> {
-  const body = JSON.stringify(payload);
-  const res = await fetchWithTimeout(`${OSS_BASE}/buckets/${bucketKey}/objects/${encodeURIComponent(objectKey)}`, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "Content-Length": Buffer.byteLength(body, "utf-8").toString(),
-    },
-    body,
-  }, 30_000);
-  if (!res.ok) {
-    const err = await res.text();
-    throw new DAError(`OSS upload failed: ${err}`, res.status);
-  }
+  // Use the signeds3upload flow — the legacy direct PUT endpoint is deprecated.
+  const buf = Buffer.from(JSON.stringify(payload), "utf-8");
+  const upload = await getSignedS3UploadUrl(token, bucketKey, objectKey);
+  await uploadToS3(upload.urls[0], buf, "application/json");
+  await finalizeS3Upload(token, bucketKey, objectKey, upload.uploadKey);
   return `oss://${bucketKey}/${objectKey}`;
 }
 

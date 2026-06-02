@@ -606,11 +606,41 @@ async function executeEngineApi(cap, op, input, t0) {
     const workItemArgs = {};
     const s3FinalizeQueue = [];
     const outputOssUrls = [];
+    // Extra inputs for multi-input capabilities: callers pass
+    // config.extraInputs = { argName: "oss://bucket/key" } to supply additional
+    // get-verb arguments beyond the primary input_file_url.
+    const extraInputs = input.config?.extraInputs ?? {};
+    const resolvedExtraInputs = {};
+    for (const [argName, ossUrl] of Object.entries(extraInputs)) {
+        if (typeof ossUrl === "string") {
+            try {
+                resolvedExtraInputs[argName] = await getSignedDownloadUrl(cred.access_token, ossUrl);
+            }
+            catch (err) {
+                return { status: "error", error: `Could not resolve signed URL for extra input '${argName}': ${String(err)}` };
+            }
+        }
+    }
     if (op.workItemArguments) {
         // Preferred: registry-defined arg shape with localName support
         for (const [argName, argDef] of Object.entries(op.workItemArguments)) {
             if (argDef.verb === "get") {
-                workItemArgs[argName] = { url: resolvedInputUrl, verb: "get", optional: argDef.optional };
+                // Extra input supplied via config.extraInputs → use that signed URL.
+                // "params" arg + config object (excluding extraInputs) → upload as JSON.
+                // Otherwise → primary input_file_url.
+                if (resolvedExtraInputs[argName]) {
+                    workItemArgs[argName] = { url: resolvedExtraInputs[argName], verb: "get", optional: argDef.optional };
+                }
+                else if (argName === "params" && input.config && Object.keys(input.config).filter(k => k !== "extraInputs").length > 0) {
+                    const paramsKey = `wf-params-${cap.alias}-${ts}.json`;
+                    const configWithoutExtras = Object.fromEntries(Object.entries(input.config).filter(([k]) => k !== "extraInputs"));
+                    await uploadJsonToOss(cred.access_token, safeBucketKey, paramsKey, configWithoutExtras);
+                    const paramsSignedUrl = await getSignedDownloadUrl(cred.access_token, `oss://${safeBucketKey}/${paramsKey}`);
+                    workItemArgs[argName] = { url: paramsSignedUrl, verb: "get", optional: argDef.optional };
+                }
+                else {
+                    workItemArgs[argName] = { url: resolvedInputUrl, verb: "get", optional: argDef.optional };
+                }
             }
             else {
                 const localName = argDef.localName ?? "result.json";
