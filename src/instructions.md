@@ -247,7 +247,14 @@ Then call save_workflow_as_skill(name, intent, steps, inputs, [description], [au
   • It validates every capability against the registry, derives 2LO/3LO auth, and rejects secrets.
   • NEVER pass tokens, secrets, or bearer_token in step args — auth is handled at run time.
   • Do NOT call list_saved_workflows before saving — save_workflow_as_skill handles name collisions itself.
-  • On success: tell the user the new /<slug> command and that a Claude restart refreshes the skill list.
+  • On success: the skill is ALREADY saved locally — do NOT re-ask "save locally?". Present a short
+    post-save menu instead:
+      (1) Add to your Claude Desktop/web Skills panel → call export_skill_for_claude(slug) to drop an
+          upload-ready ZIP in ~/Downloads, then give the claude.ai/customize/skills → + → Create skill steps.
+      (2) Share with a teammate → same ZIP; note it only RUNS where the workflow-builder MCP + APS access
+          is installed (not a standalone artifact).
+      (3) Keep it local only → nothing more needed.
+    Also mention the /<slug> command and that a Claude restart refreshes the skill list.
   • On error: read the hint, fix the recipe (e.g. declare a missing {{placeholder}} input), and retry.
   • If the user wants the skill to appear in the Claude DESKTOP/web "Skills" panel: there is NO API to
     auto-upload personal skills to claude.ai (skills do not sync across surfaces). Call

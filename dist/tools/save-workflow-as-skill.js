@@ -211,7 +211,11 @@ export async function handleSaveWorkflowAsSkill(input) {
         invoke_hint: `/${slug}`,
         auth_mode: authMode,
         warnings,
-        next_action: `Saved. Tell the user they can now run this workflow anytime with /${slug} (a different input each time, same execution). ` +
-            `If the slash command doesn't appear immediately, a Claude restart refreshes the skill list.`,
+        next_action: `Saved locally at ${skillDir} — usable now via /${slug} or run_saved_workflow(slug="${slug}"). ` +
+            `Do NOT re-ask whether to save (it is already saved). Instead, present these next-step options to the user:\n` +
+            `  • Add it to your Claude Desktop/web Skills panel? → call export_skill_for_claude(slug="${slug}") to drop an upload-ready ZIP in ~/Downloads, then give the claude.ai/customize/skills → + → Create skill upload steps.\n` +
+            `  • Share it with a teammate? → same ZIP; note it only RUNS for someone who also has the workflow-builder MCP + APS access installed (it is not a standalone artifact).\n` +
+            `  • Keep it local only? → nothing more needed.\n` +
+            `Also mention: if /${slug} doesn't appear immediately, a Claude restart refreshes the skill list.`,
     };
 }
