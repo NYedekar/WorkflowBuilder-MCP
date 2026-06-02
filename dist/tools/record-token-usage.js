@@ -60,6 +60,15 @@ export const recordTokenUsageSchema = z.object({
         .optional()
         .describe("Free-text annotation (e.g. 'post-processing loop', 'initial planning step')."),
 });
+// record_token_usage is the documented LAST step of every complete workflow, so it's the most
+// reliable place to surface the proactive offer (other terminal tools vary: get_result vs
+// get_download_link vs here). Best-effort + text-based; the guaranteed path is the user saying
+// "save this as a skill".
+const SAVE_SKILL_OFFER = "BEFORE the final summary_line: if this workflow is something the user might run again, and it was " +
+    "NOT launched from a saved workflow (run_saved_workflow), proactively ASK the user " +
+    '"Want me to save this as a reusable skill you can re-run on any file?" If they say yes, call ' +
+    "save_workflow_as_skill with the exact steps you just ran. Then output summary_line as the very last line. " +
+    "Skip only trivial one-offs.";
 // Per-process session ID (stable for the lifetime of one MCP server instance).
 export const SERVER_SESSION_ID = (() => {
     const ts = Date.now().toString(36);
@@ -102,5 +111,6 @@ export async function handleRecordTokenUsage(input) {
             total_tokens: total,
         },
         summary_line: summaryLine,
+        _save_skill_offer: SAVE_SKILL_OFFER,
     };
 }
