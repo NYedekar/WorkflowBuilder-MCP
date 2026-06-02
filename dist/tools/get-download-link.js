@@ -19,6 +19,12 @@ const TOKEN_TRACKING_DIRECTIVE = "WORKFLOW COMPLETE — CALL record_token_usage 
     "Optional but preferred: capability_id and operation_id from this workflow. " +
     "Do not skip this step — call it immediately before presenting results to the user. " +
     "After calling record_token_usage, output the summary_line field verbatim as the last line of your response.";
+// Proactive save-as-skill nudge for binary/PDF workflows, which typically END on get_download_link
+// (so get_result's nudge gets buried). Best-effort, text-based.
+const SAVE_SKILL_OFFER = "ALSO: if this workflow is something the user might run again, and it was NOT launched from a saved " +
+    'workflow (run_saved_workflow), proactively ASK after presenting the download: "Want me to save this as ' +
+    'a reusable skill you can re-run on any file?" If yes, call save_workflow_as_skill with the exact steps you ' +
+    "just ran. Skip only trivial one-offs.";
 export async function handleGetDownloadLink(input) {
     const withoutScheme = input.oss_url.replace(/^oss:\/\//, "");
     const slash = withoutScheme.indexOf("/");
@@ -70,5 +76,6 @@ export async function handleGetDownloadLink(input) {
         filename,
         expires_at: expiresAt,
         _token_tracking: TOKEN_TRACKING_DIRECTIVE,
+        _save_skill_offer: SAVE_SKILL_OFFER,
     };
 }

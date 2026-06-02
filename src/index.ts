@@ -3,6 +3,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
+  type GetPromptResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { readFileSync } from "fs";
@@ -91,6 +94,11 @@ import {
   runSavedWorkflowSchema,
   handleRunSavedWorkflow,
 } from "./tools/run-saved-workflow.js";
+import { buildPromptList, buildPromptMessages } from "./lib/prompt-builder.js";
+import {
+  exportSkillForClaudeSchema,
+  handleExportSkillForClaude,
+} from "./tools/export-skill-zip.js";
 
 // ─── Server setup ─────────────────────────────────────────────────────────
 
@@ -102,10 +110,22 @@ const server = new Server(
   {
     capabilities: {
       tools: {},
+      prompts: {},
     },
     instructions: SERVER_INSTRUCTIONS,
   }
 );
+
+// ─── Prompts: saved workflows surfaced as slash commands (any MCP host) ──────
+
+server.setRequestHandler(ListPromptsRequestSchema, async () => {
+  return { prompts: buildPromptList() };
+});
+
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+  return buildPromptMessages(name, args as Record<string, string> | undefined) as GetPromptResult;
+});
 
 // ─── Tool list ─────────────────────────────────────────────────────────────
 
@@ -281,6 +301,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           "On 3lo_required: call authenticate_aps_3lo then re-invoke with the run_handle.",
         inputSchema: zodToJsonSchema(runSavedWorkflowSchema),
       },
+      {
+        name: "export_skill_for_claude",
+        description:
+          "Package a saved workflow-skill into a claude.ai-ready ZIP so it can be added to the user's " +
+          "Claude (Desktop/web) Skills panel. Use when the user wants a saved workflow to appear as a " +
+          "Skill in Claude Desktop/claude.ai. NOTE: there is NO API to auto-upload personal skills to " +
+          "claude.ai — this produces a correctly structured ZIP (skill folder as root); the user uploads it " +
+          "via claude.ai/customize/skills → + → Create skill, after which it syncs to the Desktop Skills panel.",
+        inputSchema: zodToJsonSchema(exportSkillForClaudeSchema),
+      },
     ],
   };
 });
@@ -347,6 +377,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case "run_saved_workflow":
         result = await handleRunSavedWorkflow(runSavedWorkflowSchema.parse(args));
+        break;
+      case "export_skill_for_claude":
+        result = await handleExportSkillForClaude(exportSkillForClaudeSchema.parse(args));
         break;
       default:
         return {
