@@ -14959,7 +14959,7 @@
                       "discovery": "get_capability() → Registry match"
                     }
                   },
-                  "description": "Update one or more Revit element parameters from a CSV, XLSX, or chat-supplied list. Supports three modes: delta_file (apply all rows), full_file (delta-detect against current model values — only changed rows applied), and text_input (JSON from chat). Outputs the modified .rvt file and a structured change log with applied/skipped/error status per change. Use when the user wants to update element properties such as wall thickness, room names, material assignments, or any instance/type parameter in a Revit model.",
+                  "description": "Update one or more Revit element parameters from a CSV, XLSX, or chat-supplied list. SIMPLEST usage: pass changes inline via config — {\"inputMode\":\"text_input\",\"changes\":[{\"elementId\":\"139854\",\"parameter\":\"Comments\",\"value\":\"new value\"}]} — no separate paramsInput file needed. For CSV/XLSX: upload file to OSS and pass URL via config.extraInputs.paramsInput. Supports full_file delta detection (compare file values to current model, apply only changes). Outputs modified .rvt and structured change log.",
                   "note": "Trigger phrases: update revit parameters, change element properties, modify rvt parameters, set revit parameter, bulk update revit, update wall type, change room name, edit element parameter, parameter update from csv, parameter update from excel.",
                   "apiId": "engine:Revit",
                   "capabilityGroupId": "revit:custom-app-bundles",
@@ -14970,7 +14970,7 @@
                     {
                       "operationId": "update-element-parameters",
                       "displayName": "Update Revit Element Parameters",
-                      "description": "Modify element parameters in a Revit .rvt file from a CSV, XLSX, or JSON change list. Three input modes: delta_file (apply all rows), full_file (auto-detect delta by comparing file values to current model), text_input (JSON array from chat). Returns the modified .rvt and a per-change log with status applied|skipped|error. Use when the user provides element names/ids and parameter values to update in a Revit model.",
+                      "description": "Modify element parameters in a Revit .rvt file. PREFERRED path (chat/agent): pass changes inline via config — {\"inputMode\":\"text_input\",\"changes\":[{\"elementId\":\"123\",\"parameter\":\"Comments\",\"value\":\"new value\"}]}. FILE path (CSV/XLSX upload): upload the file to OSS, then pass oss:// URL via config.extraInputs.paramsInput and a params.json URL via config.extraInputs.params. Three inputModes: delta_file (apply all rows), full_file (auto-detect delta vs current model), text_input (JSON changes list, inline or as paramsInput file). Returns result.rvt (modified model) + result.json with per-change status applied|skipped|error.",
                       "capabilityId": "revit:RevitParameterUpdater",
                       "groupId": "revit:custom-app-bundles",
                       "product": "Revit",

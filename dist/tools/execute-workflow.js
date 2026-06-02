@@ -66,7 +66,11 @@ export const executeWorkflowSchema = z.object({
         .default({})
         .describe("Additional config merged into the Engine-API WorkItem config payload. " +
         "The 'operation' field is set automatically from operation_id. " +
-        "Ignored for REST operations (use 'body' instead)."),
+        "Ignored for REST operations (use 'body' instead). " +
+        "MULTI-INPUT CAPABILITIES: use config.extraInputs to supply additional get-verb arguments " +
+        "beyond the primary input_file_url — e.g. {\"extraInputs\":{\"paramsInput\":\"oss://bucket/file.csv\",\"params\":\"oss://bucket/params.json\"}}. " +
+        "INLINE CHANGES (Revit parameter updater): pass {\"inputMode\":\"text_input\",\"changes\":[{\"elementId\":\"123\",\"parameter\":\"Comments\",\"value\":\"new\"}]} " +
+        "and the plugin reads changes directly from this config with no separate paramsInput file needed."),
     output_bucket: z
         .string()
         .optional()
