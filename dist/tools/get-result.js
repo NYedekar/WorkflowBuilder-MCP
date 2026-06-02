@@ -185,8 +185,24 @@ async function tryAutoRecordTokens(input) {
 const TOKEN_REMINDER = "TOKEN TRACKING REQUIRED: Call record_token_usage(model=<your model ID>, " +
     "input_tokens=<total session estimate>, output_tokens=<total session estimate>) now. " +
     "Then output the returned summary_line verbatim as the LAST line of your response.";
+// Offer to save the just-run workflow as a reusable skill — appended to the FINAL output's
+// next_action only (gated by is_last_output + !has_more in the wrapper below). Conditional so
+// Claude skips it for trivial one-offs and for runs launched from an already-saved workflow.
+const SAVE_SKILL_OFFER = "Then — if this was a task the user might run again, and it was NOT launched from a saved " +
+    'workflow (run_saved_workflow) — ASK the user: "Want me to save this as a reusable skill you can ' +
+    're-run on any file?" If yes, call save_workflow_as_skill with the exact steps you just ran.';
 // ── Handler ───────────────────────────────────────────────────────────────
 export async function handleGetResult(input) {
+    const out = await getResultImpl(input);
+    // Single injection point for the "save as skill?" nudge — covers every success return path,
+    // fires once at the true end of a hand-run workflow, never mid-pagination.
+    if (out.status === "success" && input.is_last_output !== false && !out.has_more) {
+        out.next_action = out.next_action ? `${out.next_action} ${SAVE_SKILL_OFFER}` : SAVE_SKILL_OFFER;
+        out.save_as_skill_offer = true;
+    }
+    return out;
+}
+async function getResultImpl(input) {
     const withoutScheme = input.oss_url.replace(/^oss:\/\//, "");
     const slash = withoutScheme.indexOf("/");
     if (slash === -1) {
