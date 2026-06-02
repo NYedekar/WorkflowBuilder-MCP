@@ -783,8 +783,9 @@ async function executeEngineApi(
     for (const [argName, argDef] of Object.entries(op.workItemArguments)) {
       if (argDef.verb === "get") {
         // Extra input supplied via config.extraInputs → use that signed URL.
-        // "params" arg + config object (excluding extraInputs) → upload as JSON.
-        // Otherwise → primary input_file_url.
+        // "params" arg + config object (excluding extraInputs) → upload config as JSON.
+        // Optional get-arg with no value supplied → skip (DA omits optional args cleanly).
+        // Required get-arg → primary input_file_url.
         if (resolvedExtraInputs[argName]) {
           workItemArgs[argName] = { url: resolvedExtraInputs[argName], verb: "get", optional: argDef.optional };
         } else if (argName === "params" && input.config && Object.keys(input.config).filter(k => k !== "extraInputs").length > 0) {
@@ -793,6 +794,10 @@ async function executeEngineApi(
           await uploadJsonToOss(cred.access_token, safeBucketKey, paramsKey, configWithoutExtras);
           const paramsSignedUrl = await getSignedDownloadUrl(cred.access_token, `oss://${safeBucketKey}/${paramsKey}`);
           workItemArgs[argName] = { url: paramsSignedUrl, verb: "get", optional: argDef.optional };
+        } else if (argDef.optional) {
+          // Optional secondary get-arg not provided — omit from workitem so DA skips it.
+          // DO NOT fall through to resolvedInputUrl: that would send the primary DWG file
+          // to a secondary input slot (e.g. paramsFile receiving DWG binary → JSON parse error).
         } else {
           workItemArgs[argName] = { url: resolvedInputUrl, verb: "get", optional: argDef.optional };
         }

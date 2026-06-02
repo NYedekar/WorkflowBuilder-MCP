@@ -6397,7 +6397,7 @@
               "defaultActivityTemplate": "activity.default.readonly",
               "defaultConfigTemplate": "config.default.validation",
               "defaultWorkItemTemplate": "workitem.default.readonly",
-              "capabilityCount": 3,
+              "capabilityCount": 4,
               "operationCount": 11,
               "capabilities": [
                 {
@@ -6824,6 +6824,145 @@
                       }
                     }
                   ]
+                },
+                {
+                  "id": "autocad:CADStandardsChecker",
+                  "alias": "CheckCADStandards",
+                  "qualifiedName": "com.autodesk.autocad.CheckCADStandards",
+                  "version": "1.0.1",
+                  "product": "AutoCAD",
+                  "groupId": "autocad:validation-health-check",
+                  "engine": "Autodesk.AutoCAD+24_3",
+                  "risk": "SAFE",
+                  "ioShape": "inputFile.dwg + params.json (opt) + standards.dws (opt) → report.json + summary.csv + remediation.md",
+                  "rawSourceSnippet": "CAPABILITY: autocad:CADStandardsChecker\nRisk: SAFE\nI/O: inputFile.dwg + params.json (opt) + standards.dws (opt) → report.json + summary.csv + remediation.md\nEngine: Autodesk.AutoCAD+24_3\n",
+                  "contract": {
+                    "identity": {
+                      "name": "CADStandardsChecker",
+                      "group": "validation-health-check",
+                      "scope": "Engine API"
+                    },
+                    "io": {
+                      "input": "inputFile.dwg + params.json (opt) + standards.dws (opt)",
+                      "output": "report.json + summary.csv + remediation.md"
+                    },
+                    "execution": {
+                      "accessPattern": "AppBundle",
+                      "interface": "Autodesk.AutoCAD+24_3"
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() → Registry match"
+                    }
+                  },
+                  "description": "Validate a DWG against CAD standards rules: layer naming patterns, required/forbidden layers, text style and dimension style whitelists, required block definitions, linetype whitelist, and drawing hygiene (purge status). Optionally compare against an AutoCAD .dws standards file. Returns a per-rule compliance report (pass/warning/fail), a one-row summary CSV, and a Markdown remediation guide.",
+                  "apiId": "engine:AutoCAD",
+                  "capabilityGroupId": "autocad:validation-health-check",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "check-cad-standards",
+                      "displayName": "Check CAD Standards Compliance",
+                      "description": "Validate a DWG against a JSON rules payload and/or a .dws standards file. Returns report.json (per-rule results), summary.csv (one-row status counts), and remediation.md (plain-language fix guidance).",
+                      "capabilityId": "autocad:CADStandardsChecker",
+                      "groupId": "autocad:validation-health-check",
+                      "product": "AutoCAD",
+                      "engine": "Autodesk.AutoCAD+24_3",
+                      "risk": "SAFE",
+                      "outputContract": "report.json + summary.csv + remediation.md",
+                      "ioShape": "inputFile.dwg + params.json (opt) + standards.dws (opt) → report.json + summary.csv + remediation.md",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "autocad.check-cad-standards",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "VERIFIED",
+                      "workItemArguments": {
+                        "inputFile": {
+                          "verb": "get"
+                        },
+                        "paramsFile": {
+                          "verb": "get",
+                          "localName": "params.json",
+                          "optional": true
+                        },
+                        "standardsFile": {
+                          "verb": "get",
+                          "localName": "standards.dws",
+                          "optional": true
+                        },
+                        "resultJson": {
+                          "verb": "put",
+                          "localName": "result.json"
+                        },
+                        "reportJson": {
+                          "verb": "put",
+                          "localName": "report.json"
+                        },
+                        "summaryCsv": {
+                          "verb": "put",
+                          "localName": "summary.csv"
+                        },
+                        "remediationMd": {
+                          "verb": "put",
+                          "localName": "remediation.md"
+                        }
+                      },
+                      "verifiedAt": "2026-06-02",
+                      "verifiedWith": "condo-skylight.dwg (1.4 MB) + custom JSON rules payload",
+                      "verifiedResult": {
+                        "overallStatus": "fail",
+                        "pass": 8,
+                        "warning": 0,
+                        "fail": 4,
+                        "failingRules": [
+                          "REQUIRED_LAYERS (A-WALL, A-ANNO-TEXT, A-GLAZ missing)",
+                          "DIM_STYLE_WHITELIST (Annotative not on whitelist)",
+                          "REQUIRED_BLOCKS (TITLE_BLOCK, NORTH_ARROW missing)",
+                          "PURGE_STATUS (3 purgeable objects: 1 DimStyle + 2 Blocks)"
+                        ]
+                      },
+                      "callingPattern": {
+                        "step1": "upload_file(rules.json) → oss://bucket/rules.json",
+                        "step2": "execute_workflow(capability_id=\"autocad:CADStandardsChecker\", operation_id=\"check-cad-standards\", input_file_url=\"oss://bucket/drawing.dwg\", config={\"extraInputs\":{\"paramsFile\":\"oss://bucket/rules.json\"}})",
+                        "outputs": [
+                          "resultJson (smoke gate)",
+                          "reportJson (full per-rule report)",
+                          "summaryCsv (one-row PM dashboard)",
+                          "remediationMd (fix guidance)"
+                        ]
+                      },
+                      "rulesPayloadSchema": {
+                        "rules": {
+                          "layerNamePatterns": "list[regex] — layer names must match at least one pattern (layer 0 exempt)",
+                          "requiredLayers": "list[{name, color?, linetype?}] — layers that must exist with optional property checks",
+                          "forbiddenLayers": "list[str] — layer names that must NOT exist",
+                          "textStyleWhitelist": "list[str] — only these text styles allowed",
+                          "dimStyleWhitelist": "list[str] — only these dim styles allowed",
+                          "requiredBlocks": "list[str] — block definitions that must exist",
+                          "linetypeWhitelist": "list[str] — only these linetypes allowed (Continuous/ByLayer/ByBlock always exempt)",
+                          "requirePurge": "bool — fail if drawing has purgeable (unreferenced) symbol objects"
+                        },
+                        "fileAlias": "str (opt) — friendly filename for report display"
+                      }
+                    }
+                  ],
+                  "provenance": "Scaffolded by /appbuilder (2026-06-02); CI smoke gate green on feat/cad-standards-checker, merged to main; activity verified live (2026-06-02) with condo-skylight.dwg — 8 pass / 4 fail, all outputs (report.json, summary.csv, remediation.md) produced correctly. Command: APSCADCHECK (renamed from CHECKSTANDARDS which is a built-in AutoCAD command). APS activity: {NICKNAME}.CheckCADStandards+prod",
+                  "note": "Multi-input activity: paramsFile and standardsFile are optional secondary get-args (optional:true). Supply them via config.extraInputs: {\"extraInputs\":{\"paramsFile\":\"oss://bucket/rules.json\"}}. The MCP skips optional get-args that are not in extraInputs — they are NOT auto-filled with the primary DWG URL."
                 }
               ]
             },
