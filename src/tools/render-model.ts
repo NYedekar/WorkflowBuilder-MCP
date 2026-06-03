@@ -22,10 +22,10 @@ export const renderModelSchema = z.object({
     .optional()
     .default("viewer")
     .describe(
-      "'viewer' (default): auto-translates to SVF2 if needed, returns artifact_html " +
-        "(a rendered preview card for the right panel) plus viewer_url (a localhost link to the " +
-        "full interactive APS Viewer that Claude posts as a chat link — opens in the browser). " +
-        "'thumbnail': returns a 400×400 PNG image inline in chat."
+      "'viewer' (default): auto-translates to SVF2 if needed; returns a rendered preview image " +
+        "(shown in chat) plus viewer_url — a localhost link Claude posts in chat that opens the " +
+        "full interactive APS Viewer in the browser. " +
+        "'thumbnail': returns just the rendered preview image inline in chat."
     ),
   region: z
     .enum(["US", "EMEA"])
@@ -49,12 +49,16 @@ export const renderModelSchema = z.object({
 export type RenderModelInput = z.infer<typeof renderModelSchema>;
 
 // `image`, when present, is emitted by index.ts as a real MCP image content block
-// (the host renders the bytes directly). NEVER embed base64 in artifact_html — Claude
-// would have to relay the whole blob verbatim into the artifact, which it truncates,
-// producing a broken image (confirmed live 2026-06-03).
+// (the host renders the bytes directly — no LLM relay).
+//
+// Desktop strategy (chosen 2026-06-03 after MCP Apps UI host bug #165 blocked inline render,
+// and artifact-relay corrupted/failed for embedded images): NO artifact panel. The viewer is
+// delivered as (1) a preview image content block in chat, and (2) viewer_url that Claude posts
+// as a chat Markdown link → opens the full interactive APS Viewer (local server) in the browser.
+// Inline in-panel rendering is parked until Claude Desktop fixes MCP Apps UI (#165).
 export type RenderModelOutput =
-  | { status: "success"; urn: string; artifact_html: string; viewer_url: string; expires_at: string; message: string; image?: { base64: string; mimeType: string } }  // viewer: panel card + chat image + chat link
-  | { status: "success"; urn: string; message: string; image: { base64: string; mimeType: string } }                                                                  // thumbnail: chat image block
+  | { status: "success"; urn: string; viewer_url: string; expires_at: string; message: string; image?: { base64: string; mimeType: string } }  // viewer: chat image + chat link
+  | { status: "success"; urn: string; message: string; image: { base64: string; mimeType: string } }                                            // thumbnail: chat image block
   | { status: "pending"; urn: string; message: string }
   | { status: "error"; error: string; hint?: string };
 
@@ -288,36 +292,29 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
     };
   }
 
-  // ── Viewer mode (Phase 1: static preview in panel + interactive viewer link) ──
+  // ── Viewer mode: preview image in chat + interactive viewer link (Desktop, reliable) ──
   //
-  // Claude Desktop's artifact sandbox CSP forbids the live APS Viewer outright:
-  //   • script-src   → only cdnjs / pyodide  (APS Viewer SDK can't load)
-  //   • connect-src  → only pyodide          (geometry streaming can't happen)
-  //   • frame-src    → claudeusercontent.com (nested localhost iframe is blocked)
-  //   • + block-all-mixed-content            (http://127.0.0.1 is killed)
-  // img-src DOES allow data: URIs, so a rendered still IS displayable in the panel.
-  //
-  // Strategy: show a high-quality rendered preview in the panel (data: URI, CSP-safe),
-  // and hand Claude the localhost viewer URL to post as a CHAT link — clicked from the
-  // chat (not the sandbox) it opens the full interactive APS Viewer in the system browser.
-  // (Phase 2 will render real interactive 3D in-panel via three.js + a server-side glTF.)
+  // No artifact panel: Claude Desktop's artifact CSP blocks the live viewer, embedding the
+  // preview as a base64 data: URI broke artifact rendering (relay corruption / panel won't open),
+  // and MCP Apps inline UI is blocked by host bug #165. So we deliver only the two channels that
+  // reliably work on Desktop today:
+  //   (1) the rendered preview as an MCP image content block (chat), and
+  //   (2) viewer_url → a chat Markdown link that opens the full interactive APS Viewer
+  //       (served by the local HTTP server) in the system browser.
+  // In-panel/inline 3D is parked until Claude Desktop fixes MCP Apps UI (#165).
 
   // Full interactive viewer, served from the local HTTP server — opened via the chat link.
   const viewerHtml = buildViewerHtml(urn, viewerToken, viewerTtl);
   const viewerUrl = registerViewer(viewerHtml, viewerTtl);
   const expiresAt = new Date(Date.now() + viewerTtl * 1000).toISOString();
 
-  // Rendered preview. Delivered TWO ways for resilience:
-  //   (a) embedded in the panel artifact as a data: URI (200×200 → ~9KB base64 — small enough
-  //       for Claude to relay faithfully; a 400×400 ~13KB blob got truncated → broken image),
-  //       with an SVG fallback via onerror so the panel never shows a broken icon.
-  //   (b) as an MCP image content block (index.ts), which renders in the chat/tool-result area.
+  // Rendered preview → MCP image content block (host renders bytes, no LLM relay).
   // Thumbnail derivative is confirmed present for SVF2 translations (verified live 2026-06-03).
   let previewImage: { base64: string; mimeType: string } | undefined;
   let thumbFetchNote = "";
   try {
     const res = await apiFetch(
-      `${MD_BASE}/designdata/${urn}/thumbnail?width=200&height=200`,
+      `${MD_BASE}/designdata/${urn}/thumbnail?width=400&height=400`,
       { headers: { Authorization: `Bearer ${writeToken}` } }
     );
     if (res.ok) {
@@ -327,87 +324,22 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
         mimeType: ct,
       };
     } else {
-      thumbFetchNote = ` (thumbnail HTTP ${res.status})`;
+      thumbFetchNote = ` (preview thumbnail unavailable: HTTP ${res.status})`;
     }
   } catch (err) {
-    thumbFetchNote = ` (thumbnail fetch error: ${String(err).slice(0, 80)})`;
+    thumbFetchNote = ` (preview thumbnail fetch error: ${String(err).slice(0, 80)})`;
   }
-
-  const objectKey = input.oss_url.split("/").pop() ?? "model";
-  const fileName = objectKey.replace(/[<>&"']/g, ""); // sanitize for HTML text node
-
-  // Lightweight, base64-free card: inline SVG wireframe cube + the viewer button.
-  // Small enough for Claude to reproduce faithfully into the artifact.
-  const artifactHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #1b1b1f; color: #e8e8ea; font: 14px/1.5 -apple-system, system-ui, sans-serif;
-           min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-    .card { width: 100%; max-width: 560px; background: #232329; border: 1px solid #34343c;
-            border-radius: 16px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
-    .hd { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 1px solid #34343c; }
-    .dot { width: 9px; height: 9px; border-radius: 50%; background: #36c46f; box-shadow: 0 0 8px #36c46f99; }
-    .hd .t { font-weight: 600; }
-    .hd .f { margin-left: auto; font-size: 12px; opacity: .6; max-width: 50%; overflow: hidden;
-             text-overflow: ellipsis; white-space: nowrap; }
-    .stage { background: radial-gradient(ellipse at center, #2c2c34 0%, #1b1b1f 100%);
-             display: flex; flex-direction: column; align-items: center; justify-content: center;
-             gap: 14px; padding: 32px 24px; }
-    .stage svg { filter: drop-shadow(0 6px 16px rgba(0,0,0,.4)); }
-    .stage img.thumb { max-width: 100%; max-height: 300px; border-radius: 10px;
-                       box-shadow: 0 6px 20px rgba(0,0,0,.45); }
-    .stage .cap { color: #b9b9c2; font-size: 13px; text-align: center; }
-    .ft { padding: 16px 18px; border-top: 1px solid #34343c; }
-    .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
-           padding: 12px; border-radius: 10px; background: #2563eb; color: #fff; font-weight: 600;
-           text-decoration: none; }
-    .note { margin-top: 10px; font-size: 12px; opacity: .6; text-align: center; line-height: 1.5; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="hd"><span class="dot"></span><span class="t">APS Model · Translated to SVF2</span><span class="f">${fileName}</span></div>
-    <div class="stage">
-      ${previewImage
-        ? `<img class="thumb" src="data:${previewImage.mimeType};base64,${previewImage.base64}" alt="Rendered preview of ${fileName}" onerror="this.style.display='none';document.getElementById('fallbk').style.display='flex'">`
-        : ``}
-      <div id="fallbk" style="display:${previewImage ? "none" : "flex"};flex-direction:column;align-items:center;gap:14px">
-        <svg width="92" height="92" viewBox="0 0 100 100" fill="none" stroke="#6aa3ff" stroke-width="2.5" stroke-linejoin="round">
-          <path d="M50 8 L88 30 L88 70 L50 92 L12 70 L12 30 Z"/>
-          <path d="M50 8 L50 50 M50 50 L88 30 M50 50 L12 30" stroke="#3f6bbf"/>
-          <path d="M50 50 L50 92" stroke="#3f6bbf"/>
-        </svg>
-      </div>
-      <div class="cap">${previewImage ? "Rendered preview · APS Model Derivative" : "Model ready for the interactive viewer"}</div>
-    </div>
-    <div class="ft">
-      <a class="btn" href="${viewerUrl}" target="_blank" rel="noopener">🧭 Open interactive 3D viewer</a>
-      <div class="note">
-        Drag to orbit · scroll to zoom — opens in your browser.<br>
-        If the button doesn't open, click the viewer link in the chat. Session expires ~${Math.floor(viewerTtl / 60)} min.
-      </div>
-    </div>
-  </div>
-</body>
-</html>`;
 
   return {
     status: "success",
     urn,
-    artifact_html: artifactHtml,
     viewer_url: viewerUrl,
     expires_at: expiresAt,
     image: previewImage,
     message:
-      `Render complete${thumbFetchNote}. Do both: ` +
-      `(1) Present artifact_html VERBATIM as an HTML artifact titled "APS Model Preview" in the right panel — ` +
-      `it contains the rendered preview image (200×200) plus the viewer button. Reproduce it EXACTLY, character-for-character, including the data: URI. ` +
-      `(2) In your chat reply include this exact Markdown link for the full interactive viewer: [Open interactive 3D viewer](${viewerUrl}) . ` +
-      `The same preview is also attached as an image block (shows in the tool result). ` +
+      `Render complete${thumbFetchNote}. The rendered preview is attached as an image block (shows in chat). ` +
+      `In your reply, include this exact Markdown link so the user can open the full interactive 3D viewer ` +
+      `(drag to orbit, scroll to zoom — opens in their browser): [Open interactive 3D viewer](${viewerUrl}) . ` +
       `Session token expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — call render_model again to refresh.`,
   };
 }
