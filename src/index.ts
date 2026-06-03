@@ -112,6 +112,10 @@ import {
   renderViewerPocSchema,
   handleRenderViewerPoc,
 } from "./tools/render-viewer-poc.js";
+import {
+  renderMassingSchema,
+  handleRenderMassing,
+} from "./tools/render-massing.js";
 
 // ─── Server setup ─────────────────────────────────────────────────────────
 
@@ -299,6 +303,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: zodToJsonSchema(saveToMacSchema),
       },
       {
+        name: "render_massing",
+        description:
+          "Render an interactive 3D MASSING view of a model IN THE RIGHT PANEL (prototype). " +
+          "Extracts the model's levels + category counts from Model Derivative metadata and returns " +
+          "artifact_html — a self-contained three.js viewer (three.js from cdnjs, which the artifact CSP " +
+          "allows) that renders the levels as stacked floors you can orbit/zoom. Present artifact_html " +
+          "VERBATIM as an HTML artifact titled 'Model Massing'. The model must already be translated " +
+          "(run render_model first). This is a schematic massing, not full Revit geometry.",
+        inputSchema: zodToJsonSchema(renderMassingSchema),
+      },
+      {
         name: "render_model",
         description:
           "Render an APS model visually. mode='viewer' (default): the rendered preview is attached as an " +
@@ -434,6 +449,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case "save_to_mac":
         result = await handleSaveToMac(saveToMacSchema.parse(args));
+        break;
+      case "render_massing":
+        result = await handleRenderMassing(renderMassingSchema.parse(args));
         break;
       case "render_model": {
         // Return the CallToolResult directly so the rendered preview is an MCP image content
