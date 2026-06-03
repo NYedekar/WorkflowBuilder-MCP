@@ -79,7 +79,14 @@ export async function handleRenderMassing(input) {
             const aec = await aecRes.json();
             levels = (aec.levels ?? [])
                 .filter((l) => typeof l.elevation === "number")
-                .map((l) => ({ name: String(l.name ?? "Level"), elevation: l.elevation, height: Number(l.height) || 0 }))
+                .map((l) => {
+                // Revit uses INT_MAX (2147483647) as an "unbounded" sentinel for the top level's height;
+                // any out-of-range value would blow up the vertical scale. Treat as 0 → the viewer falls
+                // back to the elevation gap to the next level.
+                const h = Number(l.height);
+                const height = Number.isFinite(h) && h > 0 && h < 10000 ? h : 0;
+                return { name: String(l.name ?? "Level"), elevation: l.elevation, height };
+            })
                 .sort((a, b) => a.elevation - b.elevation)
                 .slice(0, 40);
             // footprint = union of grid bounding boxes in plan (X = idx 0/3, Y = idx 1/4)
@@ -213,7 +220,8 @@ function buildMassingHtml(m) {
     var lv = M.levels;
     var minE = lv[0].elevation;
     var top = lv[lv.length-1].elevation + (lv[lv.length-1].height || 0);
-    var bH = (top - minE) || 1;
+    var bH = top - minE;
+    if (!isFinite(bH) || bH <= 0 || bH > 100000) bH = (lv[lv.length-1].elevation - minE) || 1; // guard bad data
     var W = M.footprint.w || 60, D = M.footprint.d || 45;
     var scale = 80 / Math.max(W, D, bH);
     for (var i=0;i<lv.length;i++){
