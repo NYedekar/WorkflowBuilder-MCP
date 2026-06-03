@@ -85,6 +85,8 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         return { contents: [{ uri: SAVE_SKILL_UI_URI, mimeType: MCP_APP_MIME, text: SAVE_SKILL_UI_HTML }] };
     }
     if (request.params.uri === VIEWER_POC_URI) {
+        // Diagnostic: confirms the host actually fetched the POC resource (vs. never requesting it).
+        process.stderr.write(`[mcp-workflow-builder] resources/read VIEWER_POC_URI (${VIEWER_POC_HTML.length} bytes)\n`);
         return { contents: [{ uri: VIEWER_POC_URI, mimeType: MCP_APP_MIME, text: VIEWER_POC_HTML }] };
     }
     throw new Error(`Unknown resource: ${request.params.uri}`);
