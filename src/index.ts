@@ -411,9 +411,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "save_to_mac":
         result = await handleSaveToMac(saveToMacSchema.parse(args));
         break;
-      case "render_model":
-        result = await handleRenderModel(renderModelSchema.parse(args));
-        break;
+      case "render_model": {
+        // Return the CallToolResult directly so the rendered preview is an MCP image content
+        // block (host renders the bytes). Embedding base64 in the JSON/artifact would force
+        // Claude to relay the whole blob, which it truncates → broken image.
+        const r = await handleRenderModel(renderModelSchema.parse(args));
+        const blocks: Array<Record<string, unknown>> = [];
+        const { image, ...rest } = r as { image?: { base64: string; mimeType: string } } & Record<string, unknown>;
+        if (image) {
+          blocks.push({ type: "image", data: image.base64, mimeType: image.mimeType });
+        }
+        const warn = getRateLimitWarning();
+        const payload = warn ? { ...rest, _rate_limit_warning: warn } : rest;
+        blocks.push({ type: "text", text: JSON.stringify(payload, null, 2) });
+        return { content: blocks };
+      }
       case "record_token_usage":
         result = await handleRecordTokenUsage(recordTokenUsageSchema.parse(args));
         break;

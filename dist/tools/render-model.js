@@ -233,8 +233,8 @@ export async function handleRenderModel(input) {
         return {
             status: "success",
             urn,
-            thumbnail_base64: Buffer.from(bytes).toString("base64"),
-            content_type: contentType, // L2: typed as string, not literal "image/png"
+            message: "Model thumbnail (rendered by APS). Shown inline above.",
+            image: { base64: Buffer.from(bytes).toString("base64"), mimeType: contentType },
         };
     }
     // ── Viewer mode (Phase 1: static preview in panel + interactive viewer link) ──
@@ -254,24 +254,27 @@ export async function handleRenderModel(input) {
     const viewerHtml = buildViewerHtml(urn, viewerToken, viewerTtl);
     const viewerUrl = registerViewer(viewerHtml, viewerTtl);
     const expiresAt = new Date(Date.now() + viewerTtl * 1000).toISOString();
-    // Rendered preview for the panel. Falls back gracefully if the thumbnail can't be fetched.
-    let previewDataUri = "";
+    // Rendered preview — fetched as raw bytes and returned via the `image` field, which
+    // index.ts emits as a real MCP image content block (renders in chat, no relay/corruption).
+    // It is NOT embedded in artifact_html. Non-fatal if it fails.
+    let previewImage;
     try {
         const res = await apiFetch(`${MD_BASE}/designdata/${urn}/thumbnail?width=400&height=400`, { headers: { Authorization: `Bearer ${writeToken}` } });
         if (res.ok) {
             const ct = res.headers.get("content-type") ?? "image/png";
-            const b64 = Buffer.from(new Uint8Array(await res.arrayBuffer())).toString("base64");
-            previewDataUri = `data:${ct};base64,${b64}`;
+            previewImage = {
+                base64: Buffer.from(new Uint8Array(await res.arrayBuffer())).toString("base64"),
+                mimeType: ct,
+            };
         }
     }
     catch {
-        // non-fatal — panel will show a placeholder instead of the rendered image
+        // non-fatal — chat just won't show the preview image
     }
     const objectKey = input.oss_url.split("/").pop() ?? "model";
     const fileName = objectKey.replace(/[<>&"']/g, ""); // sanitize for HTML text node
-    const imageBlock = previewDataUri
-        ? `<img class="preview" src="${previewDataUri}" alt="Rendered preview of ${fileName}">`
-        : `<div class="placeholder">No preview image available<br><small>Open the interactive viewer below</small></div>`;
+    // Lightweight, base64-free card: inline SVG wireframe cube + the viewer button.
+    // Small enough for Claude to reproduce faithfully into the artifact.
     const artifactHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -289,21 +292,28 @@ export async function handleRenderModel(input) {
     .hd .f { margin-left: auto; font-size: 12px; opacity: .6; max-width: 50%; overflow: hidden;
              text-overflow: ellipsis; white-space: nowrap; }
     .stage { background: radial-gradient(ellipse at center, #2c2c34 0%, #1b1b1f 100%);
-             display: flex; align-items: center; justify-content: center; padding: 24px; }
-    .preview { max-width: 100%; max-height: 360px; border-radius: 8px; }
-    .placeholder { color: #9a9aa2; text-align: center; padding: 60px 20px; }
+             display: flex; flex-direction: column; align-items: center; justify-content: center;
+             gap: 14px; padding: 40px 24px; }
+    .stage svg { filter: drop-shadow(0 6px 16px rgba(0,0,0,.4)); }
+    .stage .cap { color: #b9b9c2; font-size: 13px; text-align: center; }
     .ft { padding: 16px 18px; border-top: 1px solid #34343c; }
     .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
            padding: 12px; border-radius: 10px; background: #2563eb; color: #fff; font-weight: 600;
            text-decoration: none; }
     .note { margin-top: 10px; font-size: 12px; opacity: .6; text-align: center; line-height: 1.5; }
-    code { background: #00000040; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="hd"><span class="dot"></span><span class="t">APS Model · Translated to SVF2</span><span class="f">${fileName}</span></div>
-    <div class="stage">${imageBlock}</div>
+    <div class="stage">
+      <svg width="92" height="92" viewBox="0 0 100 100" fill="none" stroke="#6aa3ff" stroke-width="2.5" stroke-linejoin="round">
+        <path d="M50 8 L88 30 L88 70 L50 92 L12 70 L12 30 Z"/>
+        <path d="M50 8 L50 50 M50 50 L88 30 M50 50 L12 30" stroke="#3f6bbf"/>
+        <path d="M50 50 L50 92" stroke="#3f6bbf"/>
+      </svg>
+      <div class="cap">Model ready · rendered preview shown in chat</div>
+    </div>
     <div class="ft">
       <a class="btn" href="${viewerUrl}" target="_blank" rel="noopener">🧭 Open interactive 3D viewer</a>
       <div class="note">
@@ -320,13 +330,11 @@ export async function handleRenderModel(input) {
         artifact_html: artifactHtml,
         viewer_url: viewerUrl,
         expires_at: expiresAt,
-        message: `Two-part render. ` +
-            `(1) Present artifact_html as an HTML artifact titled "APS Model Preview" in the right panel — ` +
-            `it shows the rendered model and a viewer button. ` +
-            `(2) In your CHAT reply, include this exact clickable Markdown link so the user can open the ` +
-            `full interactive 3D viewer in their browser (the in-panel button may be blocked by the sandbox, ` +
-            `but a chat link always works): [Open interactive 3D viewer](${viewerUrl}) . ` +
-            `The interactive session token expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — ` +
-            `call render_model again to refresh it.`,
+        image: previewImage,
+        message: `Render complete. Do all three: ` +
+            `(1) The rendered preview image is attached as an image block — it shows inline in chat automatically; do not try to recreate it. ` +
+            `(2) Present artifact_html VERBATIM as an HTML artifact titled "APS Model Preview" in the right panel (it is small and base64-free — reproduce it exactly). ` +
+            `(3) In your chat reply include this exact Markdown link for the full interactive viewer: [Open interactive 3D viewer](${viewerUrl}) . ` +
+            `Session token expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — call render_model again to refresh.`,
     };
 }
