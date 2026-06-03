@@ -97,6 +97,7 @@ import {
   handleRunSavedWorkflow,
 } from "./tools/run-saved-workflow.js";
 import { buildPromptList, buildPromptMessages } from "./lib/prompt-builder.js";
+import { startViewerServer } from "./lib/viewer-server.js";
 import {
   exportSkillForClaudeSchema,
   handleExportSkillForClaude,
@@ -283,7 +284,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "render_model",
-        description: "Render an APS model visually — either as an interactive 3D viewer or as a thumbnail image.",
+        description:
+          "Render an APS model visually — interactive 3D viewer in the right panel, or thumbnail inline in chat. " +
+          "mode='viewer' (default): returns artifact_html — you MUST present this as an HTML artifact " +
+          "titled 'APS 3D Viewer' in the right panel (antArtifact type='text/html'). " +
+          "The iframe inside artifact_html loads the Autodesk Viewer from a local server (port 7830) " +
+          "started at MCP boot — no sandbox restriction. " +
+          "mode='thumbnail': returns thumbnail_base64 PNG — show inline in chat.",
         inputSchema: zodToJsonSchema(renderModelSchema),
       },
       {
@@ -495,6 +502,7 @@ async function preflight(): Promise<void> {
 // ─── Start ────────────────────────────────────────────────────────────────
 
 async function main() {
+  startViewerServer(); // start before MCP connect so port is bound early
   const transport = new StdioServerTransport();
   await server.connect(transport);
   // Fire-and-forget: warms token cache; errors surface to stderr only, never block startup.

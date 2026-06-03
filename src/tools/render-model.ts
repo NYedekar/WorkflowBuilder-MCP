@@ -1,12 +1,6 @@
 import { z } from "zod";
-import * as fs from "fs";
-import * as path from "path";
-import * as os from "os";
-import { exec } from "child_process";
-import { promisify } from "util";
 import { resolveCredential } from "../auth/credential-resolver.js";
-
-const execAsync = promisify(exec);
+import { registerViewer } from "../lib/viewer-server.js";
 
 const MD_BASE = "https://developer.api.autodesk.com/modelderivative/v2";
 
@@ -28,10 +22,10 @@ export const renderModelSchema = z.object({
     .optional()
     .default("viewer")
     .describe(
-      "'viewer' (default): auto-translates to SVF2 if needed, returns self-contained HTML " +
-        "for Claude to present as an interactive 3D viewer artifact (experimental — rendering " +
-        "depends on Claude Desktop's artifact heuristics; if blank, try mode='thumbnail'). " +
-        "'thumbnail': returns a 400×400 PNG image inline in chat — reliable, no sandbox dependency."
+      "'viewer' (default): auto-translates to SVF2 if needed, returns artifact_html " +
+        "with an embedded iframe pointing to a local viewer server (port 7830). " +
+        "Claude must render artifact_html as an HTML artifact in the right panel. " +
+        "'thumbnail': returns a 400×400 PNG image inline in chat — use if the viewer panel is blank."
     ),
   region: z
     .enum(["US", "EMEA"])
@@ -55,8 +49,8 @@ export const renderModelSchema = z.object({
 export type RenderModelInput = z.infer<typeof renderModelSchema>;
 
 export type RenderModelOutput =
-  | { status: "success"; urn: string; file_path: string; message: string; expires_at: string }  // viewer: saved + opened in browser
-  | { status: "success"; urn: string; thumbnail_base64: string; content_type: string }          // thumbnail: MCP image block
+  | { status: "success"; urn: string; artifact_html: string; viewer_url: string; expires_at: string; message: string }  // viewer: artifact panel iframe
+  | { status: "success"; urn: string; thumbnail_base64: string; content_type: string }                                  // thumbnail: MCP image block
   | { status: "pending"; urn: string; message: string }
   | { status: "error"; error: string; hint?: string };
 
@@ -290,50 +284,58 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
     };
   }
 
-  // Default: viewer HTML — save to ~/Downloads and open in system browser.
-  // The Claude artifact iframe blocks external CDN (APS Viewer SDK never loads there).
-  // Opening in the native browser bypasses the sandbox entirely: full WebGL, no CSP restriction.
-  const html = buildViewerHtml(urn, viewerToken, viewerTtl);
-  const shortUrn = urn.slice(0, 12);
-  const filename = `aps-viewer-${shortUrn}.html`;
-  const filePath = path.join(os.homedir(), "Downloads", filename);
-
-  try {
-    fs.writeFileSync(filePath, html, "utf-8");
-  } catch (err) {
-    return {
-      status: "error",
-      error: `Failed to save viewer HTML: ${String(err)}`,
-      hint: "Check that ~/Downloads is writable.",
-    };
-  }
-
+  // Viewer mode: serve HTML from a local HTTP server (port 7830) started at MCP boot.
+  // The artifact HTML embeds an <iframe> pointing to localhost — the inner iframe runs in a
+  // real Electron browser context with no CSP restriction, so the APS Viewer SDK loads freely.
+  const viewerHtml = buildViewerHtml(urn, viewerToken, viewerTtl);
+  const viewerUrl = registerViewer(viewerHtml, viewerTtl);
   const expiresAt = new Date(Date.now() + viewerTtl * 1000).toISOString();
 
-  try {
-    await execAsync(`open "${filePath}"`);
-  } catch (err) {
-    // File is saved even if open fails — user can double-click it manually.
-    return {
-      status: "success",
-      urn,
-      file_path: filePath,
-      expires_at: expiresAt,
-      message:
-        `Viewer saved to ${filePath}. ` +
-        `Could not auto-open (${String(err)}). Double-click the file to open it in your browser. ` +
-        `Token expires at ${expiresAt} — call render_model again to regenerate.`,
-    };
-  }
+  const artifactHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #1e1e1e; overflow: hidden; }
+    iframe { display: block; width: 100vw; height: 100vh; border: none; }
+    #fallback {
+      display: none; position: fixed; inset: 0; align-items: center;
+      justify-content: center; background: #1e1e1e; color: #ccc;
+      font: 13px/1.6 sans-serif; text-align: center; padding: 24px;
+    }
+  </style>
+</head>
+<body>
+  <iframe
+    src="${viewerUrl}"
+    allowfullscreen
+    allow="fullscreen"
+    onerror="document.getElementById('fallback').style.display='flex'"
+  ></iframe>
+  <div id="fallback">
+    <div>
+      <b style="color:#f90">APS Viewer</b><br>
+      If the viewer is blank, the artifact sandbox may be blocking the local server.<br><br>
+      <small>Token expires: ${expiresAt}<br>
+      Direct URL: <a href="${viewerUrl}" style="color:#6af">${viewerUrl}</a><br>
+      Try <code>render_model(mode="thumbnail")</code> for a static preview.</small>
+    </div>
+  </div>
+</body>
+</html>`;
 
   return {
     status: "success",
     urn,
-    file_path: filePath,
+    artifact_html: artifactHtml,
+    viewer_url: viewerUrl,
     expires_at: expiresAt,
     message:
-      `Viewer opened in your default browser. ` +
-      `File saved at: ${filePath}. ` +
-      `Token expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — call render_model again to regenerate a fresh copy.`,
+      `IMPORTANT: Render the artifact_html field as an HTML artifact titled "APS 3D Viewer" ` +
+      `in the right panel (type="text/html"). ` +
+      `The iframe loads the Autodesk Viewer from a local server — allow a few seconds for it to appear. ` +
+      `Token expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min). ` +
+      `If the panel is blank, try render_model with mode="thumbnail" instead.`,
   };
 }
