@@ -254,12 +254,16 @@ export async function handleRenderModel(input) {
     const viewerHtml = buildViewerHtml(urn, viewerToken, viewerTtl);
     const viewerUrl = registerViewer(viewerHtml, viewerTtl);
     const expiresAt = new Date(Date.now() + viewerTtl * 1000).toISOString();
-    // Rendered preview — fetched as raw bytes and returned via the `image` field, which
-    // index.ts emits as a real MCP image content block (renders in chat, no relay/corruption).
-    // It is NOT embedded in artifact_html. Non-fatal if it fails.
+    // Rendered preview. Delivered TWO ways for resilience:
+    //   (a) embedded in the panel artifact as a data: URI (200×200 → ~9KB base64 — small enough
+    //       for Claude to relay faithfully; a 400×400 ~13KB blob got truncated → broken image),
+    //       with an SVG fallback via onerror so the panel never shows a broken icon.
+    //   (b) as an MCP image content block (index.ts), which renders in the chat/tool-result area.
+    // Thumbnail derivative is confirmed present for SVF2 translations (verified live 2026-06-03).
     let previewImage;
+    let thumbFetchNote = "";
     try {
-        const res = await apiFetch(`${MD_BASE}/designdata/${urn}/thumbnail?width=400&height=400`, { headers: { Authorization: `Bearer ${writeToken}` } });
+        const res = await apiFetch(`${MD_BASE}/designdata/${urn}/thumbnail?width=200&height=200`, { headers: { Authorization: `Bearer ${writeToken}` } });
         if (res.ok) {
             const ct = res.headers.get("content-type") ?? "image/png";
             previewImage = {
@@ -267,9 +271,12 @@ export async function handleRenderModel(input) {
                 mimeType: ct,
             };
         }
+        else {
+            thumbFetchNote = ` (thumbnail HTTP ${res.status})`;
+        }
     }
-    catch {
-        // non-fatal — chat just won't show the preview image
+    catch (err) {
+        thumbFetchNote = ` (thumbnail fetch error: ${String(err).slice(0, 80)})`;
     }
     const objectKey = input.oss_url.split("/").pop() ?? "model";
     const fileName = objectKey.replace(/[<>&"']/g, ""); // sanitize for HTML text node
@@ -293,8 +300,10 @@ export async function handleRenderModel(input) {
              text-overflow: ellipsis; white-space: nowrap; }
     .stage { background: radial-gradient(ellipse at center, #2c2c34 0%, #1b1b1f 100%);
              display: flex; flex-direction: column; align-items: center; justify-content: center;
-             gap: 14px; padding: 40px 24px; }
+             gap: 14px; padding: 32px 24px; }
     .stage svg { filter: drop-shadow(0 6px 16px rgba(0,0,0,.4)); }
+    .stage img.thumb { max-width: 100%; max-height: 300px; border-radius: 10px;
+                       box-shadow: 0 6px 20px rgba(0,0,0,.45); }
     .stage .cap { color: #b9b9c2; font-size: 13px; text-align: center; }
     .ft { padding: 16px 18px; border-top: 1px solid #34343c; }
     .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
@@ -307,12 +316,17 @@ export async function handleRenderModel(input) {
   <div class="card">
     <div class="hd"><span class="dot"></span><span class="t">APS Model · Translated to SVF2</span><span class="f">${fileName}</span></div>
     <div class="stage">
-      <svg width="92" height="92" viewBox="0 0 100 100" fill="none" stroke="#6aa3ff" stroke-width="2.5" stroke-linejoin="round">
-        <path d="M50 8 L88 30 L88 70 L50 92 L12 70 L12 30 Z"/>
-        <path d="M50 8 L50 50 M50 50 L88 30 M50 50 L12 30" stroke="#3f6bbf"/>
-        <path d="M50 50 L50 92" stroke="#3f6bbf"/>
-      </svg>
-      <div class="cap">Model ready · rendered preview shown in chat</div>
+      ${previewImage
+        ? `<img class="thumb" src="data:${previewImage.mimeType};base64,${previewImage.base64}" alt="Rendered preview of ${fileName}" onerror="this.style.display='none';document.getElementById('fallbk').style.display='flex'">`
+        : ``}
+      <div id="fallbk" style="display:${previewImage ? "none" : "flex"};flex-direction:column;align-items:center;gap:14px">
+        <svg width="92" height="92" viewBox="0 0 100 100" fill="none" stroke="#6aa3ff" stroke-width="2.5" stroke-linejoin="round">
+          <path d="M50 8 L88 30 L88 70 L50 92 L12 70 L12 30 Z"/>
+          <path d="M50 8 L50 50 M50 50 L88 30 M50 50 L12 30" stroke="#3f6bbf"/>
+          <path d="M50 50 L50 92" stroke="#3f6bbf"/>
+        </svg>
+      </div>
+      <div class="cap">${previewImage ? "Rendered preview · APS Model Derivative" : "Model ready for the interactive viewer"}</div>
     </div>
     <div class="ft">
       <a class="btn" href="${viewerUrl}" target="_blank" rel="noopener">🧭 Open interactive 3D viewer</a>
@@ -331,10 +345,11 @@ export async function handleRenderModel(input) {
         viewer_url: viewerUrl,
         expires_at: expiresAt,
         image: previewImage,
-        message: `Render complete. Do all three: ` +
-            `(1) The rendered preview image is attached as an image block — it shows inline in chat automatically; do not try to recreate it. ` +
-            `(2) Present artifact_html VERBATIM as an HTML artifact titled "APS Model Preview" in the right panel (it is small and base64-free — reproduce it exactly). ` +
-            `(3) In your chat reply include this exact Markdown link for the full interactive viewer: [Open interactive 3D viewer](${viewerUrl}) . ` +
+        message: `Render complete${thumbFetchNote}. Do both: ` +
+            `(1) Present artifact_html VERBATIM as an HTML artifact titled "APS Model Preview" in the right panel — ` +
+            `it contains the rendered preview image (200×200) plus the viewer button. Reproduce it EXACTLY, character-for-character, including the data: URI. ` +
+            `(2) In your chat reply include this exact Markdown link for the full interactive viewer: [Open interactive 3D viewer](${viewerUrl}) . ` +
+            `The same preview is also attached as an image block (shows in the tool result). ` +
             `Session token expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — call render_model again to refresh.`,
     };
 }
