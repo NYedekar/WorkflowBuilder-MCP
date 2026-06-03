@@ -1,8 +1,36 @@
 import { z } from "zod";
+import { exec } from "child_process";
+import { promisify } from "util";
 import { resolveCredential } from "../auth/credential-resolver.js";
 import { registerViewer } from "../lib/viewer-server.js";
+import { handleRecordTokenUsage } from "./record-token-usage.js";
+
+const execAsync = promisify(exec);
 
 const MD_BASE = "https://developer.api.autodesk.com/modelderivative/v2";
+
+// Mirrors get_result's token-tracking + save-as-skill flow so render_model behaves consistently.
+const TOKEN_REMINDER =
+  "TOKEN TRACKING: call record_token_usage(model=<your model ID>, input_tokens=<total session estimate>, " +
+  "output_tokens=<total session estimate>), then output the returned summary_line verbatim as the LAST line of your response.";
+
+const SAVE_SKILL_OFFER =
+  "Then — if rendering models like this is something the user might do again, and this was NOT launched from a " +
+  'saved workflow (run_saved_workflow) — ASK: "Want me to save this as a reusable skill you can re-run on any file?" ' +
+  "If yes, call save_workflow_as_skill with the exact steps you just ran (upload_file → render_model).";
+
+async function tryAutoRecordTokens(
+  model?: string,
+  inTok?: number,
+  outTok?: number
+): Promise<string | undefined> {
+  if (!model || !inTok || !outTok) return undefined;
+  try {
+    return (await handleRecordTokenUsage({ model, input_tokens: inTok, output_tokens: outTok })).summary_line;
+  } catch {
+    return undefined;
+  }
+}
 
 // M1: pinned viewer version — update deliberately after testing; never use 7.* wildcard
 const VIEWER_VERSION = "7.108.0";
@@ -44,6 +72,25 @@ export const renderModelSchema = z.object({
         "Deletes the existing manifest and restarts from scratch. " +
         "Use only if a previous translation produced a corrupt or incomplete result."
     ), // C4
+  model: z
+    .string()
+    .optional()
+    .describe(
+      "Your model ID (e.g. 'claude-sonnet-4-6'). Provide with estimated_input_tokens and " +
+        "estimated_output_tokens to auto-record token usage inline (like get_result) — returns a summary_line."
+    ),
+  estimated_input_tokens: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Estimated total session input tokens. Provide on the final (success) render to auto-record usage."),
+  estimated_output_tokens: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Estimated total session output tokens. Provide on the final (success) render to auto-record usage."),
 });
 
 export type RenderModelInput = z.infer<typeof renderModelSchema>;
@@ -57,7 +104,7 @@ export type RenderModelInput = z.infer<typeof renderModelSchema>;
 // as a chat Markdown link → opens the full interactive APS Viewer (local server) in the browser.
 // Inline in-panel rendering is parked until Claude Desktop fixes MCP Apps UI (#165).
 export type RenderModelOutput =
-  | { status: "success"; urn: string; viewer_url: string; image_url?: string; expires_at: string; message: string; image?: { base64: string; mimeType: string } }  // viewer: chat image + chat link
+  | { status: "success"; urn: string; viewer_url: string; opened_in_browser?: boolean; expires_at: string; message: string; next_action?: string; summary_line?: string; save_as_skill_offer?: boolean; image?: { base64: string; mimeType: string } }  // viewer: auto-opened browser viewer + token + skill offer
   | { status: "success"; urn: string; message: string; image: { base64: string; mimeType: string } }                                            // thumbnail: chat image block
   | { status: "pending"; urn: string; message: string }
   | { status: "error"; error: string; hint?: string };
@@ -292,21 +339,24 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
     };
   }
 
-  // ── Viewer mode: preview image in chat + interactive viewer link (Desktop, reliable) ──
+  // ── Viewer mode: SVF2 translation → full interactive APS Viewer in the browser ──
   //
-  // No artifact panel: Claude Desktop's artifact CSP blocks the live viewer, embedding the
-  // preview as a base64 data: URI broke artifact rendering (relay corruption / panel won't open),
-  // and MCP Apps inline UI is blocked by host bug #165. So we deliver only the two channels that
-  // reliably work on Desktop today:
-  //   (1) the rendered preview as an MCP image content block (chat), and
-  //   (2) viewer_url → a chat Markdown link that opens the full interactive APS Viewer
-  //       (served by the local HTTP server) in the system browser.
-  // In-panel/inline 3D is parked until Claude Desktop fixes MCP Apps UI (#165).
-
-  // Full interactive viewer, served from the local HTTP server — opened via the chat link.
+  // In-panel/inline 3D is parked (Claude Desktop artifact CSP blocks the live viewer; MCP Apps
+  // inline UI hits host bug #165). The reliable Desktop deliverable: serve the viewer from the
+  // local HTTP server and AUTO-OPEN it in the system browser. Also: record token usage (like
+  // get_result) and offer to save the flow as a reusable skill.
   const viewerHtml = buildViewerHtml(urn, viewerToken, viewerTtl);
   const viewerUrl = registerViewer(viewerHtml, viewerTtl);
   const expiresAt = new Date(Date.now() + viewerTtl * 1000).toISOString();
+
+  // Auto-open the viewer in the default browser (MCP runs locally on the Mac).
+  let openedInBrowser = false;
+  try {
+    await execAsync(`open "${viewerUrl}"`);
+    openedInBrowser = true;
+  } catch {
+    openedInBrowser = false; // fall back to the chat link
+  }
 
   // Rendered preview → MCP image content block (for model awareness + the collapsed tool-result).
   // NOTE: every in-chat image channel on Claude Desktop has been empirically closed (image block =
@@ -334,17 +384,36 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
     thumbFetchNote = ` (preview thumbnail fetch error: ${String(err).slice(0, 80)})`;
   }
 
+  const summaryLine = await tryAutoRecordTokens(
+    input.model,
+    input.estimated_input_tokens,
+    input.estimated_output_tokens
+  );
+
+  // next_action chains: (1) save-as-skill offer, then (2) token tracking / summary_line.
+  const tokenStep = summaryLine
+    ? "Output the summary_line field verbatim as the LAST line of your response."
+    : TOKEN_REMINDER;
+  const next_action = `${SAVE_SKILL_OFFER} ${tokenStep}`;
+
+  const openedMsg = openedInBrowser
+    ? "Opened the interactive 3D viewer in your browser automatically."
+    : "Could not auto-open the browser — share this link so the user can open it:";
+
   return {
     status: "success",
     urn,
     viewer_url: viewerUrl,
+    opened_in_browser: openedInBrowser,
     expires_at: expiresAt,
     image: previewImage,
+    summary_line: summaryLine,
+    save_as_skill_offer: true,
+    next_action,
     message:
-      `Render complete${thumbFetchNote}. Post this link as the deliverable — it opens the full ` +
-      `interactive 3D model in the browser (orbit, zoom, isolate, inspect): ` +
-      `[Open interactive 3D viewer](${viewerUrl}) . ` +
-      `Do NOT claim an image is shown inline (Claude Desktop can't render one here). ` +
-      `Session expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — call render_model again to refresh.`,
+      `Render complete${thumbFetchNote}. ${openedMsg} [Open interactive 3D viewer](${viewerUrl}) — ` +
+      `the full model (orbit, zoom, isolate, inspect). Do NOT claim an image is shown inline. ` +
+      `Session expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — call render_model again to refresh. ` +
+      `THEN: ${next_action}`,
   };
 }

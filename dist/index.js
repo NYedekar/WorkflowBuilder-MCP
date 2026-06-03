@@ -213,11 +213,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: "render_model",
-                description: "Render an APS model visually. mode='viewer' (default): the rendered preview is attached as an " +
-                    "image content block (shows in chat automatically — do not recreate it), and viewer_url is returned. " +
-                    "Post viewer_url in your chat reply as a Markdown link ([Open interactive 3D viewer](viewer_url)); " +
-                    "clicked from chat it opens the full interactive Autodesk Viewer in the browser. " +
-                    "mode='thumbnail': returns just the rendered preview image inline in chat.",
+                description: "Render an APS model visually. mode='viewer' (default): translates to SVF2 and AUTO-OPENS the full " +
+                    "interactive Autodesk Viewer in the user's browser; also returns viewer_url (post it as a Markdown link " +
+                    "[Open interactive 3D viewer](viewer_url) as a fallback). Like get_result, pass model + " +
+                    "estimated_input_tokens + estimated_output_tokens to auto-record token usage (returns summary_line — " +
+                    "output it verbatim as the LAST line), and it returns next_action that asks whether to save the flow as a " +
+                    "reusable skill. mode='thumbnail': returns just the rendered preview image inline in chat.",
                 inputSchema: zodToJsonSchema(renderModelSchema),
             },
             {
