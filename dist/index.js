@@ -35,6 +35,8 @@ import { startViewerServer } from "./lib/viewer-server.js";
 import { exportSkillForClaudeSchema, handleExportSkillForClaude, } from "./tools/export-skill-zip.js";
 import { offerSaveSkillButtonSchema, handleOfferSaveSkillButton, } from "./tools/offer-save-skill-button.js";
 import { SAVE_SKILL_UI_URI, MCP_APP_MIME, SAVE_SKILL_UI_HTML } from "./lib/save-skill-ui.js";
+import { VIEWER_POC_URI, VIEWER_POC_HTML } from "./lib/viewer-poc-ui.js";
+import { renderViewerPocSchema, handleRenderViewerPoc, } from "./tools/render-viewer-poc.js";
 // ─── Server setup ─────────────────────────────────────────────────────────
 const server = new Server({
     name: "mcp-workflow-builder",
@@ -69,12 +71,21 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
                 mimeType: MCP_APP_MIME,
                 _meta: { ui: { prefersBorder: true } },
             },
+            {
+                uri: VIEWER_POC_URI,
+                name: "3D viewer POC (rotating WebGL cube)",
+                mimeType: MCP_APP_MIME,
+                _meta: { ui: { prefersBorder: true } },
+            },
         ],
     };
 });
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     if (request.params.uri === SAVE_SKILL_UI_URI) {
         return { contents: [{ uri: SAVE_SKILL_UI_URI, mimeType: MCP_APP_MIME, text: SAVE_SKILL_UI_HTML }] };
+    }
+    if (request.params.uri === VIEWER_POC_URI) {
+        return { contents: [{ uri: VIEWER_POC_URI, mimeType: MCP_APP_MIME, text: VIEWER_POC_HTML }] };
     }
     throw new Error(`Unknown resource: ${request.params.uri}`);
 });
@@ -259,6 +270,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 inputSchema: zodToJsonSchema(offerSaveSkillButtonSchema),
                 _meta: { ui: { resourceUri: SAVE_SKILL_UI_URI, visibility: ["model", "app"] } },
             },
+            {
+                name: "render_viewer_poc",
+                description: "PROOF-OF-CONCEPT: render a rotating 3D WebGL cube INLINE in the conversation via MCP Apps UI. " +
+                    "Use to verify the relay-free inline-rendering channel works in this host. Call it when the user asks to " +
+                    "'test the inline viewer', 'test the POC', or 'render the cube'. No inputs required.",
+                inputSchema: zodToJsonSchema(renderViewerPocSchema),
+                _meta: { ui: { resourceUri: VIEWER_POC_URI, visibility: ["model", "app"] } },
+            },
         ],
     };
 });
@@ -341,6 +360,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 // Return the CallToolResult directly so structuredContent reaches the MCP Apps iframe
                 // (the generic wrapper below would otherwise stringify everything into a text block).
                 return handleOfferSaveSkillButton(offerSaveSkillButtonSchema.parse(args));
+            case "render_viewer_poc":
+                // Return directly so structuredContent reaches the linked MCP Apps UI iframe.
+                return handleRenderViewerPoc(renderViewerPocSchema.parse(args));
             default:
                 return {
                     content: [{ type: "text", text: JSON.stringify({ error: `Unknown tool: ${name}` }) }],
