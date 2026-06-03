@@ -251,21 +251,17 @@ export async function handleRenderModel(input) {
     const viewerHtml = buildViewerHtml(urn, viewerToken, viewerTtl);
     const viewerUrl = registerViewer(viewerHtml, viewerTtl);
     const expiresAt = new Date(Date.now() + viewerTtl * 1000).toISOString();
-    // Rendered preview, delivered THREE ways (each works on a different host quirk):
-    //   • MCP image content block (chat tool-result area)
-    //   • Markdown-image URL served from the local HTTP server (/img/<id>.png) — the untried
-    //     channel; Electron Claude Desktop may render a localhost <img> inline where tool images don't.
-    // Thumbnail derivative is confirmed present for SVF2 translations (verified live 2026-06-03).
-    let previewImage;
+    // Rendered preview → served as a localhost PNG (/img/<id>.png) for Markdown-image embedding.
+    // We deliberately do NOT return an MCP image content block here: the model perceives that block
+    // as "shown above" and then skips emitting the Markdown image, so the user (who can't see the
+    // collapsed tool-result block) ends up with no visible preview. Markdown image is the only
+    // channel that can land an image in the visible conversation, so force that path exclusively.
     let imageUrl;
     let thumbFetchNote = "";
     try {
         const res = await apiFetch(`${MD_BASE}/designdata/${urn}/thumbnail?width=400&height=400`, { headers: { Authorization: `Bearer ${writeToken}` } });
         if (res.ok) {
-            const ct = res.headers.get("content-type") ?? "image/png";
-            const bytes = Buffer.from(new Uint8Array(await res.arrayBuffer()));
-            previewImage = { base64: bytes.toString("base64"), mimeType: ct };
-            imageUrl = registerImage(bytes); // localhost PNG URL for Markdown-image embedding
+            imageUrl = registerImage(Buffer.from(new Uint8Array(await res.arrayBuffer())));
         }
         else {
             thumbFetchNote = ` (preview thumbnail unavailable: HTTP ${res.status})`;
@@ -274,19 +270,19 @@ export async function handleRenderModel(input) {
     catch (err) {
         thumbFetchNote = ` (preview thumbnail fetch error: ${String(err).slice(0, 80)})`;
     }
-    const markdownImg = imageUrl ? `![Model preview](${imageUrl})` : "";
     return {
         status: "success",
         urn,
         viewer_url: viewerUrl,
         image_url: imageUrl,
         expires_at: expiresAt,
-        image: previewImage,
-        message: `Render complete${thumbFetchNote}. In your reply, include BOTH of these verbatim on their own lines:\n` +
-            (markdownImg ? `${markdownImg}\n` : ``) +
-            `[Open interactive 3D viewer](${viewerUrl})\n` +
-            `The first is a rendered preview image of the model; the second opens the full interactive 3D viewer ` +
-            `in the browser (drag to orbit, scroll to zoom). The preview is also attached as an image block. ` +
-            `Session expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — call render_model again to refresh.`,
+        message: `Render complete${thumbFetchNote}. There is NO preview shown yet — the user cannot see anything ` +
+            `unless you output the lines below. Begin your reply with these two lines EXACTLY AS WRITTEN, ` +
+            `each on its own line, nothing before them, do not describe or summarize them:\n` +
+            (imageUrl ? `![Model preview](${imageUrl})\n` : ``) +
+            `[Open interactive 3D viewer](${viewerUrl})\n\n` +
+            `(The first line embeds the rendered preview image; the second opens the full interactive 3D viewer ` +
+            `in the browser.) Then you may add a one-line caption. Session expires at ${expiresAt} ` +
+            `(~${Math.floor(viewerTtl / 60)} min) — call render_model again to refresh.`,
     };
 }
