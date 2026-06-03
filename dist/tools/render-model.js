@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { resolveCredential } from "../auth/credential-resolver.js";
-import { registerViewer, registerImage } from "../lib/viewer-server.js";
+import { registerViewer } from "../lib/viewer-server.js";
 const MD_BASE = "https://developer.api.autodesk.com/modelderivative/v2";
 // M1: pinned viewer version — update deliberately after testing; never use 7.* wildcard
 const VIEWER_VERSION = "7.108.0";
@@ -251,17 +251,22 @@ export async function handleRenderModel(input) {
     const viewerHtml = buildViewerHtml(urn, viewerToken, viewerTtl);
     const viewerUrl = registerViewer(viewerHtml, viewerTtl);
     const expiresAt = new Date(Date.now() + viewerTtl * 1000).toISOString();
-    // Rendered preview → served as a localhost PNG (/img/<id>.png) for Markdown-image embedding.
-    // We deliberately do NOT return an MCP image content block here: the model perceives that block
-    // as "shown above" and then skips emitting the Markdown image, so the user (who can't see the
-    // collapsed tool-result block) ends up with no visible preview. Markdown image is the only
-    // channel that can land an image in the visible conversation, so force that path exclusively.
-    let imageUrl;
+    // Rendered preview → MCP image content block (for model awareness + the collapsed tool-result).
+    // NOTE: every in-chat image channel on Claude Desktop has been empirically closed (image block =
+    // collapsed-only, artifact data: URI = relay corruption, inline MCP UI = bug #165, external/
+    // localhost Markdown image = "Show Image" gate that won't load). So the *visible deliverable* is
+    // the interactive viewer link; the image block just lets the model describe the model + is
+    // accessible by expanding the tool result.
+    let previewImage;
     let thumbFetchNote = "";
     try {
         const res = await apiFetch(`${MD_BASE}/designdata/${urn}/thumbnail?width=400&height=400`, { headers: { Authorization: `Bearer ${writeToken}` } });
         if (res.ok) {
-            imageUrl = registerImage(Buffer.from(new Uint8Array(await res.arrayBuffer())));
+            const ct = res.headers.get("content-type") ?? "image/png";
+            previewImage = {
+                base64: Buffer.from(new Uint8Array(await res.arrayBuffer())).toString("base64"),
+                mimeType: ct,
+            };
         }
         else {
             thumbFetchNote = ` (preview thumbnail unavailable: HTTP ${res.status})`;
@@ -274,15 +279,12 @@ export async function handleRenderModel(input) {
         status: "success",
         urn,
         viewer_url: viewerUrl,
-        image_url: imageUrl,
         expires_at: expiresAt,
-        message: `Render complete${thumbFetchNote}. There is NO preview shown yet — the user cannot see anything ` +
-            `unless you output the lines below. Begin your reply with these two lines EXACTLY AS WRITTEN, ` +
-            `each on its own line, nothing before them, do not describe or summarize them:\n` +
-            (imageUrl ? `![Model preview](${imageUrl})\n` : ``) +
-            `[Open interactive 3D viewer](${viewerUrl})\n\n` +
-            `(The first line embeds the rendered preview image; the second opens the full interactive 3D viewer ` +
-            `in the browser.) Then you may add a one-line caption. Session expires at ${expiresAt} ` +
-            `(~${Math.floor(viewerTtl / 60)} min) — call render_model again to refresh.`,
+        image: previewImage,
+        message: `Render complete${thumbFetchNote}. Post this link as the deliverable — it opens the full ` +
+            `interactive 3D model in the browser (orbit, zoom, isolate, inspect): ` +
+            `[Open interactive 3D viewer](${viewerUrl}) . ` +
+            `Do NOT claim an image is shown inline (Claude Desktop can't render one here). ` +
+            `Session expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — call render_model again to refresh.`,
     };
 }
