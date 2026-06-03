@@ -16,9 +16,9 @@ export const renderModelSchema = z.object({
         .optional()
         .default("viewer")
         .describe("'viewer' (default): auto-translates to SVF2 if needed, returns artifact_html " +
-        "with an embedded iframe pointing to a local viewer server (port 7830). " +
-        "Claude must render artifact_html as an HTML artifact in the right panel. " +
-        "'thumbnail': returns a 400×400 PNG image inline in chat — use if the viewer panel is blank."),
+        "(a rendered preview card for the right panel) plus viewer_url (a localhost link to the " +
+        "full interactive APS Viewer that Claude posts as a chat link — opens in the browser). " +
+        "'thumbnail': returns a 400×400 PNG image inline in chat."),
     region: z
         .enum(["US", "EMEA"])
         .optional()
@@ -237,41 +237,79 @@ export async function handleRenderModel(input) {
             content_type: contentType, // L2: typed as string, not literal "image/png"
         };
     }
-    // Viewer mode: serve HTML from a local HTTP server (port 7830) started at MCP boot.
-    // The artifact HTML embeds an <iframe> pointing to localhost — the inner iframe runs in a
-    // real Electron browser context with no CSP restriction, so the APS Viewer SDK loads freely.
+    // ── Viewer mode (Phase 1: static preview in panel + interactive viewer link) ──
+    //
+    // Claude Desktop's artifact sandbox CSP forbids the live APS Viewer outright:
+    //   • script-src   → only cdnjs / pyodide  (APS Viewer SDK can't load)
+    //   • connect-src  → only pyodide          (geometry streaming can't happen)
+    //   • frame-src    → claudeusercontent.com (nested localhost iframe is blocked)
+    //   • + block-all-mixed-content            (http://127.0.0.1 is killed)
+    // img-src DOES allow data: URIs, so a rendered still IS displayable in the panel.
+    //
+    // Strategy: show a high-quality rendered preview in the panel (data: URI, CSP-safe),
+    // and hand Claude the localhost viewer URL to post as a CHAT link — clicked from the
+    // chat (not the sandbox) it opens the full interactive APS Viewer in the system browser.
+    // (Phase 2 will render real interactive 3D in-panel via three.js + a server-side glTF.)
+    // Full interactive viewer, served from the local HTTP server — opened via the chat link.
     const viewerHtml = buildViewerHtml(urn, viewerToken, viewerTtl);
     const viewerUrl = registerViewer(viewerHtml, viewerTtl);
     const expiresAt = new Date(Date.now() + viewerTtl * 1000).toISOString();
+    // Rendered preview for the panel. Falls back gracefully if the thumbnail can't be fetched.
+    let previewDataUri = "";
+    try {
+        const res = await apiFetch(`${MD_BASE}/designdata/${urn}/thumbnail?width=400&height=400`, { headers: { Authorization: `Bearer ${writeToken}` } });
+        if (res.ok) {
+            const ct = res.headers.get("content-type") ?? "image/png";
+            const b64 = Buffer.from(new Uint8Array(await res.arrayBuffer())).toString("base64");
+            previewDataUri = `data:${ct};base64,${b64}`;
+        }
+    }
+    catch {
+        // non-fatal — panel will show a placeholder instead of the rendered image
+    }
+    const objectKey = input.oss_url.split("/").pop() ?? "model";
+    const fileName = objectKey.replace(/[<>&"']/g, ""); // sanitize for HTML text node
+    const imageBlock = previewDataUri
+        ? `<img class="preview" src="${previewDataUri}" alt="Rendered preview of ${fileName}">`
+        : `<div class="placeholder">No preview image available<br><small>Open the interactive viewer below</small></div>`;
     const artifactHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #1e1e1e; overflow: hidden; }
-    iframe { display: block; width: 100vw; height: 100vh; border: none; }
-    #fallback {
-      display: none; position: fixed; inset: 0; align-items: center;
-      justify-content: center; background: #1e1e1e; color: #ccc;
-      font: 13px/1.6 sans-serif; text-align: center; padding: 24px;
-    }
+    body { background: #1b1b1f; color: #e8e8ea; font: 14px/1.5 -apple-system, system-ui, sans-serif;
+           min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .card { width: 100%; max-width: 560px; background: #232329; border: 1px solid #34343c;
+            border-radius: 16px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+    .hd { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 1px solid #34343c; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #36c46f; box-shadow: 0 0 8px #36c46f99; }
+    .hd .t { font-weight: 600; }
+    .hd .f { margin-left: auto; font-size: 12px; opacity: .6; max-width: 50%; overflow: hidden;
+             text-overflow: ellipsis; white-space: nowrap; }
+    .stage { background: radial-gradient(ellipse at center, #2c2c34 0%, #1b1b1f 100%);
+             display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .preview { max-width: 100%; max-height: 360px; border-radius: 8px; }
+    .placeholder { color: #9a9aa2; text-align: center; padding: 60px 20px; }
+    .ft { padding: 16px 18px; border-top: 1px solid #34343c; }
+    .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+           padding: 12px; border-radius: 10px; background: #2563eb; color: #fff; font-weight: 600;
+           text-decoration: none; }
+    .note { margin-top: 10px; font-size: 12px; opacity: .6; text-align: center; line-height: 1.5; }
+    code { background: #00000040; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
   </style>
 </head>
 <body>
-  <iframe
-    src="${viewerUrl}"
-    allowfullscreen
-    allow="fullscreen"
-    onerror="document.getElementById('fallback').style.display='flex'"
-  ></iframe>
-  <div id="fallback">
-    <div>
-      <b style="color:#f90">APS Viewer</b><br>
-      If the viewer is blank, the artifact sandbox may be blocking the local server.<br><br>
-      <small>Token expires: ${expiresAt}<br>
-      Direct URL: <a href="${viewerUrl}" style="color:#6af">${viewerUrl}</a><br>
-      Try <code>render_model(mode="thumbnail")</code> for a static preview.</small>
+  <div class="card">
+    <div class="hd"><span class="dot"></span><span class="t">APS Model · Translated to SVF2</span><span class="f">${fileName}</span></div>
+    <div class="stage">${imageBlock}</div>
+    <div class="ft">
+      <a class="btn" href="${viewerUrl}" target="_blank" rel="noopener">🧭 Open interactive 3D viewer</a>
+      <div class="note">
+        Drag to orbit · scroll to zoom — opens in your browser.<br>
+        If the button doesn't open, click the viewer link in the chat. Session expires ~${Math.floor(viewerTtl / 60)} min.
+      </div>
     </div>
   </div>
 </body>
@@ -282,10 +320,13 @@ export async function handleRenderModel(input) {
         artifact_html: artifactHtml,
         viewer_url: viewerUrl,
         expires_at: expiresAt,
-        message: `IMPORTANT: Render the artifact_html field as an HTML artifact titled "APS 3D Viewer" ` +
-            `in the right panel (type="text/html"). ` +
-            `The iframe loads the Autodesk Viewer from a local server — allow a few seconds for it to appear. ` +
-            `Token expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min). ` +
-            `If the panel is blank, try render_model with mode="thumbnail" instead.`,
+        message: `Two-part render. ` +
+            `(1) Present artifact_html as an HTML artifact titled "APS Model Preview" in the right panel — ` +
+            `it shows the rendered model and a viewer button. ` +
+            `(2) In your CHAT reply, include this exact clickable Markdown link so the user can open the ` +
+            `full interactive 3D viewer in their browser (the in-panel button may be blocked by the sandbox, ` +
+            `but a chat link always works): [Open interactive 3D viewer](${viewerUrl}) . ` +
+            `The interactive session token expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — ` +
+            `call render_model again to refresh it.`,
     };
 }

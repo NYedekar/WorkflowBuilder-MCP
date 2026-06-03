@@ -285,12 +285,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "render_model",
         description:
-          "Render an APS model visually — interactive 3D viewer in the right panel, or thumbnail inline in chat. " +
-          "mode='viewer' (default): returns artifact_html — you MUST present this as an HTML artifact " +
-          "titled 'APS 3D Viewer' in the right panel (antArtifact type='text/html'). " +
-          "The iframe inside artifact_html loads the Autodesk Viewer from a local server (port 7830) " +
-          "started at MCP boot — no sandbox restriction. " +
-          "mode='thumbnail': returns thumbnail_base64 PNG — show inline in chat.",
+          "Render an APS model visually. mode='viewer' (default) returns TWO things you must surface: " +
+          "(1) artifact_html — present it as an HTML artifact (antArtifact type='text/html', " +
+          "title 'APS Model Preview') in the right panel; it shows the rendered model + a viewer button. " +
+          "(2) viewer_url — post it in your chat reply as a Markdown link " +
+          "([Open interactive 3D viewer](viewer_url)); clicked from chat it opens the full interactive " +
+          "Autodesk Viewer in the browser. mode='thumbnail' returns thumbnail_base64 PNG — show inline in chat.",
         inputSchema: zodToJsonSchema(renderModelSchema),
       },
       {
