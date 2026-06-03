@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { resolveCredential } from "../auth/credential-resolver.js";
-import { registerViewer } from "../lib/viewer-server.js";
+import { registerViewer, registerImage } from "../lib/viewer-server.js";
 
 const MD_BASE = "https://developer.api.autodesk.com/modelderivative/v2";
 
@@ -57,7 +57,7 @@ export type RenderModelInput = z.infer<typeof renderModelSchema>;
 // as a chat Markdown link → opens the full interactive APS Viewer (local server) in the browser.
 // Inline in-panel rendering is parked until Claude Desktop fixes MCP Apps UI (#165).
 export type RenderModelOutput =
-  | { status: "success"; urn: string; viewer_url: string; expires_at: string; message: string; image?: { base64: string; mimeType: string } }  // viewer: chat image + chat link
+  | { status: "success"; urn: string; viewer_url: string; image_url?: string; expires_at: string; message: string; image?: { base64: string; mimeType: string } }  // viewer: chat image + chat link
   | { status: "success"; urn: string; message: string; image: { base64: string; mimeType: string } }                                            // thumbnail: chat image block
   | { status: "pending"; urn: string; message: string }
   | { status: "error"; error: string; hint?: string };
@@ -308,9 +308,13 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
   const viewerUrl = registerViewer(viewerHtml, viewerTtl);
   const expiresAt = new Date(Date.now() + viewerTtl * 1000).toISOString();
 
-  // Rendered preview → MCP image content block (host renders bytes, no LLM relay).
+  // Rendered preview, delivered THREE ways (each works on a different host quirk):
+  //   • MCP image content block (chat tool-result area)
+  //   • Markdown-image URL served from the local HTTP server (/img/<id>.png) — the untried
+  //     channel; Electron Claude Desktop may render a localhost <img> inline where tool images don't.
   // Thumbnail derivative is confirmed present for SVF2 translations (verified live 2026-06-03).
   let previewImage: { base64: string; mimeType: string } | undefined;
+  let imageUrl: string | undefined;
   let thumbFetchNote = "";
   try {
     const res = await apiFetch(
@@ -319,10 +323,9 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
     );
     if (res.ok) {
       const ct = res.headers.get("content-type") ?? "image/png";
-      previewImage = {
-        base64: Buffer.from(new Uint8Array(await res.arrayBuffer())).toString("base64"),
-        mimeType: ct,
-      };
+      const bytes = Buffer.from(new Uint8Array(await res.arrayBuffer()));
+      previewImage = { base64: bytes.toString("base64"), mimeType: ct };
+      imageUrl = registerImage(bytes); // localhost PNG URL for Markdown-image embedding
     } else {
       thumbFetchNote = ` (preview thumbnail unavailable: HTTP ${res.status})`;
     }
@@ -330,16 +333,21 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
     thumbFetchNote = ` (preview thumbnail fetch error: ${String(err).slice(0, 80)})`;
   }
 
+  const markdownImg = imageUrl ? `![Model preview](${imageUrl})` : "";
+
   return {
     status: "success",
     urn,
     viewer_url: viewerUrl,
+    image_url: imageUrl,
     expires_at: expiresAt,
     image: previewImage,
     message:
-      `Render complete${thumbFetchNote}. The rendered preview is attached as an image block (shows in chat). ` +
-      `In your reply, include this exact Markdown link so the user can open the full interactive 3D viewer ` +
-      `(drag to orbit, scroll to zoom — opens in their browser): [Open interactive 3D viewer](${viewerUrl}) . ` +
-      `Session token expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — call render_model again to refresh.`,
+      `Render complete${thumbFetchNote}. In your reply, include BOTH of these verbatim on their own lines:\n` +
+      (markdownImg ? `${markdownImg}\n` : ``) +
+      `[Open interactive 3D viewer](${viewerUrl})\n` +
+      `The first is a rendered preview image of the model; the second opens the full interactive 3D viewer ` +
+      `in the browser (drag to orbit, scroll to zoom). The preview is also attached as an image block. ` +
+      `Session expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — call render_model again to refresh.`,
   };
 }

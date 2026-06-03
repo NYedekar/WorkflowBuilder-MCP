@@ -45,6 +45,20 @@ export function startViewerServer(): void {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Content-Security-Policy", "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;");
 
+      // Image route: serve a thumbnail PNG (for Markdown-image embedding in chat).
+      const imgId = req.url?.match(/^\/img\/([a-f0-9]{16})\.png$/)?.[1];
+      if (imgId) {
+        const ip = path.join(STORE_DIR, `${imgId}.png`);
+        try {
+          const buf = fs.readFileSync(ip);
+          res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-cache" });
+          res.end(buf);
+        } catch {
+          res.writeHead(404); res.end("Not found");
+        }
+        return;
+      }
+
       const id = req.url?.match(/^\/v\/([a-f0-9]{16})$/)?.[1];
       if (!id) { res.writeHead(404); res.end("Not found"); return; }
 
@@ -93,4 +107,12 @@ export function registerViewer(html: string, _ttlSeconds: number): string {
   const id = randomBytes(8).toString("hex"); // 16 hex chars
   fs.writeFileSync(fileFor(id), html, "utf-8");
   return `http://127.0.0.1:${serverPort}/v/${id}`;
+}
+
+// Serve a PNG (thumbnail) for Markdown-image embedding in chat. Returns the localhost image URL.
+export function registerImage(png: Buffer): string {
+  ensureDir();
+  const id = randomBytes(8).toString("hex");
+  fs.writeFileSync(path.join(STORE_DIR, `${id}.png`), png);
+  return `http://127.0.0.1:${serverPort}/img/${id}.png`;
 }
