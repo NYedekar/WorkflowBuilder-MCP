@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { exec } from "child_process";
 import { promisify } from "util";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
 import { resolveCredential } from "../auth/credential-resolver.js";
-import { registerViewer } from "../lib/viewer-server.js";
 import { handleRecordTokenUsage } from "./record-token-usage.js";
 
 const execAsync = promisify(exec);
@@ -50,9 +52,9 @@ export const renderModelSchema = z.object({
     .optional()
     .default("viewer")
     .describe(
-      "'viewer' (default): auto-translates to SVF2 if needed; returns a rendered preview image " +
-        "(shown in chat) plus viewer_url — a localhost link Claude posts in chat that opens the " +
-        "full interactive APS Viewer in the browser. " +
+      "'viewer' (default): auto-translates to SVF2 if needed; saves a self-contained Autodesk Viewer " +
+        "HTML file to ~/Downloads and auto-opens it in the browser (returns file_path). The file is " +
+        "emailable and shows the full model (valid ~1h until the embedded token expires). " +
         "'thumbnail': returns just the rendered preview image inline in chat."
     ),
   region: z
@@ -104,7 +106,7 @@ export type RenderModelInput = z.infer<typeof renderModelSchema>;
 // as a chat Markdown link → opens the full interactive APS Viewer (local server) in the browser.
 // Inline in-panel rendering is parked until Claude Desktop fixes MCP Apps UI (#165).
 export type RenderModelOutput =
-  | { status: "success"; urn: string; viewer_url: string; opened_in_browser?: boolean; expires_at: string; message: string; next_action?: string; summary_line?: string; save_as_skill_offer?: boolean; image?: { base64: string; mimeType: string } }  // viewer: auto-opened browser viewer + token + skill offer
+  | { status: "success"; urn: string; file_path: string; opened_in_browser?: boolean; expires_at: string; message: string; next_action?: string; summary_line?: string; save_as_skill_offer?: boolean; image?: { base64: string; mimeType: string } }  // viewer: emailable APS Viewer HTML file, auto-opened + token + skill offer
   | { status: "success"; urn: string; message: string; image: { base64: string; mimeType: string } }                                            // thumbnail: chat image block
   | { status: "pending"; urn: string; message: string }
   | { status: "error"; error: string; hint?: string };
@@ -339,23 +341,37 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
     };
   }
 
-  // ── Viewer mode: SVF2 translation → full interactive APS Viewer in the browser ──
+  // ── Viewer mode (Flavor A): self-contained APS Viewer HTML file, auto-opened + emailable ──
   //
-  // In-panel/inline 3D is parked (Claude Desktop artifact CSP blocks the live viewer; MCP Apps
-  // inline UI hits host bug #165). The reliable Desktop deliverable: serve the viewer from the
-  // local HTTP server and AUTO-OPEN it in the system browser. Also: record token usage (like
-  // get_result) and offer to save the flow as a reusable skill.
+  // Writes a standalone HTML page (embeds a short-lived viewables:read token) to ~/Downloads and
+  // opens it in the browser. The FILE is emailable — a recipient opens it directly and gets the
+  // full Autodesk Viewer (real geometry + materials + BIM), valid until the token expires (~1h;
+  // APS 2LO cap). Durable/shareable links come later via a hosted token-endpoint service.
+  // (In-panel 3D parked: Claude Desktop artifact CSP blocks the live viewer; MCP Apps UI = #165.)
   const viewerHtml = buildViewerHtml(urn, viewerToken, viewerTtl);
-  const viewerUrl = registerViewer(viewerHtml, viewerTtl);
   const expiresAt = new Date(Date.now() + viewerTtl * 1000).toISOString();
 
-  // Auto-open the viewer in the default browser (MCP runs locally on the Mac).
+  const objectKey = input.oss_url.split("/").pop() ?? "model";
+  const safeName =
+    objectKey.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9-_]+/g, "-").slice(0, 60) || "model";
+  const filePath = path.join(os.homedir(), "Downloads", `aps-viewer-${safeName}.html`);
+
   let openedInBrowser = false;
   try {
-    await execAsync(`open "${viewerUrl}"`);
+    fs.writeFileSync(filePath, viewerHtml, "utf-8");
+  } catch (err) {
+    return {
+      status: "error",
+      error: `Failed to save viewer HTML: ${String(err)}`,
+      hint: "Check that ~/Downloads is writable.",
+    };
+  }
+  // Auto-open the file in the default browser (MCP runs locally on the Mac).
+  try {
+    await execAsync(`open "${filePath}"`);
     openedInBrowser = true;
   } catch {
-    openedInBrowser = false; // fall back to the chat link
+    openedInBrowser = false; // user can double-click the file manually
   }
 
   // Rendered preview → MCP image content block (for model awareness + the collapsed tool-result).
@@ -396,14 +412,15 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
     : TOKEN_REMINDER;
   const next_action = `${SAVE_SKILL_OFFER} ${tokenStep}`;
 
+  const mins = Math.floor(viewerTtl / 60);
   const openedMsg = openedInBrowser
-    ? "Opened the interactive 3D viewer in your browser automatically."
-    : "Could not auto-open the browser — share this link so the user can open it:";
+    ? `Saved an interactive Autodesk Viewer page and opened it in your browser: ${filePath}`
+    : `Saved an interactive Autodesk Viewer page (could not auto-open — double-click it): ${filePath}`;
 
   return {
     status: "success",
     urn,
-    viewer_url: viewerUrl,
+    file_path: filePath,
     opened_in_browser: openedInBrowser,
     expires_at: expiresAt,
     image: previewImage,
@@ -411,9 +428,9 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
     save_as_skill_offer: true,
     next_action,
     message:
-      `Render complete${thumbFetchNote}. ${openedMsg} [Open interactive 3D viewer](${viewerUrl}) — ` +
-      `the full model (orbit, zoom, isolate, inspect). Do NOT claim an image is shown inline. ` +
-      `Session expires at ${expiresAt} (~${Math.floor(viewerTtl / 60)} min) — call render_model again to refresh. ` +
-      `THEN: ${next_action}`,
+      `Render complete${thumbFetchNote}. ${openedMsg} — the full model (orbit, zoom, isolate, inspect). ` +
+      `This .html file is EMAILABLE: a recipient opens it directly to view the model — valid for ~${mins} min ` +
+      `(until ${expiresAt}, when the embedded token expires), then re-run render_model for a fresh file. ` +
+      `Do NOT claim an image is shown inline. THEN: ${next_action}`,
   };
 }
