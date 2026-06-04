@@ -4,7 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import { fileURLToPath } from "url";
 import { persistFinalizeQueue } from "../lib/finalize-store.js";
-import { saveActiveJob } from "../lib/session-store.js";
+import { saveActiveJob, getZipPathHint } from "../lib/session-store.js";
 import { jobRegistry } from "../lib/job-registry.js";
 import { resolveCredential, resolve3LOCredential, DEFAULT_SCOPES } from "../auth/credential-resolver.js";
 import { findCapabilityById, findOperationByGlobalId } from "../lib/registry-client.js";
@@ -649,7 +649,17 @@ async function executeEngineApi(cap, op, input, t0) {
                     // to a secondary input slot (e.g. paramsFile receiving DWG binary → JSON parse error).
                 }
                 else {
-                    workItemArgs[argName] = { url: resolvedInputUrl, verb: "get", optional: argDef.optional };
+                    // pathInZip: explicit config wins; fall back to hint stored at upload_file time.
+                    // This makes Inventor zip assemblies fully transparent — user never needs to
+                    // know the internal zip structure.
+                    const configPathInZip = input.config?.pathInZip;
+                    const pathInZip = configPathInZip ?? getZipPathHint(input.input_file_url ?? "");
+                    workItemArgs[argName] = {
+                        url: resolvedInputUrl,
+                        verb: "get",
+                        optional: argDef.optional,
+                        ...(pathInZip ? { pathInZip } : {}),
+                    };
                 }
             }
             else {

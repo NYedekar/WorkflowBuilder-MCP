@@ -53,6 +53,7 @@ export interface WorkItemArgument {
   verb: "get" | "put" | "post" | "patch" | "read";
   optional?: boolean;
   headers?: Record<string, string>;
+  pathInZip?: string;
 }
 
 // ── DA Nickname ───────────────────────────────────────────────────────────

@@ -3,7 +3,8 @@ import { basename, extname } from "path";
 import { homedir } from "os";
 import { createHash } from "crypto";
 import { z } from "zod";
-import { getPersistedUpload, setPersistedUpload } from "../lib/session-store.js";
+import { getPersistedUpload, setPersistedUpload, setZipPathHint, getZipPathHint } from "../lib/session-store.js";
+import { findRootIamInZip } from "../lib/zip-scanner.js";
 const ossUploadCache = new Map();
 const CACHE_TTL_MS = 30 * 60 * 1000;
 function getCachedOssUrl(key) {
@@ -139,6 +140,13 @@ export async function handleUploadFile(input) {
     const cachedUrl = getCachedOssUrl(cacheKey) ?? getPersistedUpload(cacheKey);
     if (cachedUrl) {
         setCachedOssUrl(cacheKey, cachedUrl); // warm in-memory cache from persisted hit
+        // Zip scan may not have run on the original upload (e.g. code updated since then).
+        // Run it now if we don't already have a hint for this OSS URL.
+        if (resolvedPath.toLowerCase().endsWith(".zip") && !getZipPathHint(cachedUrl)) {
+            const rootIam = findRootIamInZip(resolvedPath);
+            if (rootIam)
+                setZipPathHint(cachedUrl, rootIam);
+        }
         return { status: "success", oss_url: cachedUrl, cached: true };
     }
     // ── APS auth ──────────────────────────────────────────────────────────────
@@ -213,6 +221,13 @@ export async function handleUploadFile(input) {
     // Cache in-memory and persist to disk so repeat calls skip the upload across restarts.
     setCachedOssUrl(cacheKey, ossUrl);
     setPersistedUpload(cacheKey, ossUrl);
+    // For Inventor zip uploads: scan the zip to detect the root .iam so execute_workflow
+    // can automatically set pathInZip without requiring the user to know the zip structure.
+    if (resolvedPath.toLowerCase().endsWith(".zip")) {
+        const rootIam = findRootIamInZip(resolvedPath);
+        if (rootIam)
+            setZipPathHint(ossUrl, rootIam);
+    }
     return {
         status: "success",
         oss_url: ossUrl,

@@ -28,6 +28,7 @@ interface SessionData {
   updatedAt: string;
   uploads: Record<string, UploadEntry>;
   jobs: Record<string, ActiveJob>;
+  zipPathHints: Record<string, string>; // ossUrl → pathInZip for Inventor zip uploads
 }
 
 const UPLOAD_TTL_MS = 20 * 60 * 60 * 1000; // 20h — 4h safety margin before APS 24h transient bucket expiry
@@ -49,7 +50,7 @@ function load(): SessionData {
   } catch {
     // missing or corrupt — start fresh
   }
-  _session = { version: 1, updatedAt: new Date().toISOString(), uploads: {}, jobs: {} };
+  _session = { version: 1, updatedAt: new Date().toISOString(), uploads: {}, jobs: {}, zipPathHints: {} };
   return _session;
 }
 
@@ -116,6 +117,22 @@ export function removeActiveJob(workItemId: string): void {
 export interface SessionRecovery {
   summary: string;
   handles: Array<{ type: string; workItemId: string; outputOssUrls: string[] }>;
+}
+
+// ── Inventor zip path hints ───────────────────────────────────────────────
+// Stored at upload time so execute_workflow can auto-set pathInZip without
+// requiring the user to know the internal zip structure.
+
+export function getZipPathHint(ossUrl: string): string | null {
+  const s = load();
+  return (s.zipPathHints ?? {})[ossUrl] ?? null;
+}
+
+export function setZipPathHint(ossUrl: string, pathInZip: string): void {
+  const s = load();
+  if (!s.zipPathHints) s.zipPathHints = {};
+  s.zipPathHints[ossUrl] = pathInZip;
+  save();
 }
 
 // Returns recovery info for jobs submitted in a previous server instance, or null if none.

@@ -26,7 +26,7 @@ function load() {
     catch {
         // missing or corrupt — start fresh
     }
-    _session = { version: 1, updatedAt: new Date().toISOString(), uploads: {}, jobs: {} };
+    _session = { version: 1, updatedAt: new Date().toISOString(), uploads: {}, jobs: {}, zipPathHints: {} };
     return _session;
 }
 function save() {
@@ -91,6 +91,20 @@ export function removeActiveJob(workItemId) {
         delete s.jobs[workItemId];
         save();
     }
+}
+// ── Inventor zip path hints ───────────────────────────────────────────────
+// Stored at upload time so execute_workflow can auto-set pathInZip without
+// requiring the user to know the internal zip structure.
+export function getZipPathHint(ossUrl) {
+    const s = load();
+    return (s.zipPathHints ?? {})[ossUrl] ?? null;
+}
+export function setZipPathHint(ossUrl, pathInZip) {
+    const s = load();
+    if (!s.zipPathHints)
+        s.zipPathHints = {};
+    s.zipPathHints[ossUrl] = pathInZip;
+    save();
 }
 // Returns recovery info for jobs submitted in a previous server instance, or null if none.
 export function getSessionRecoverySummary() {

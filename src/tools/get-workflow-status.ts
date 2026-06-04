@@ -294,7 +294,7 @@ async function pollSingleHandle(
       workflow_handle: updatedHandle,
       workItemId: handle.workItemId,
       poll_duration_ms: durationMs,
-      hint: "WorkItem is still running. Revit jobs can take 3–8 minutes — keep polling.",
+      hint: "WorkItem is still running. Inventor and Revit jobs can take 5–10 minutes — keep polling.",
     };
   }
 
