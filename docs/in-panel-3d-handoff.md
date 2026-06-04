@@ -32,6 +32,19 @@ Claude artifacts run in the `www.claudeusercontent.com` sandbox. Verified CSP:
 
 **Net:** Desktop can't show real geometry in-panel — inline relay can't carry a GLB, and the no-relay channel (#165) is broken there.
 
+### Measured: decimation vs relay ceiling (racbasic OBJ probe, 2026-06-03)
+Translated racbasic.rvt → OBJ (`objectIds:[-1]`, single file) = **29.6 MB, 257K verts, 414K tris**. Vertex-cluster decimation + int16-quantized indexed serialization:
+
+| grid | triangles | base64 size | vs ~10 KB ceiling |
+|---|---|---|---|
+| G=16 | 626 | 7.1 KB | ✅ fits — but ~massing-level blob, not recognizable |
+| G=24 | 1,158 | 13.4 KB | ✗ |
+| G=40 | 2,057 | 24.8 KB | ✗ |
+| G=64 | 3,166 | 39.2 KB | ✗ (~min for a recognizable house) |
+| G=160 | 7,172 | 91.6 KB | ✗ |
+
+**Conclusion:** only a 626-triangle blob fits the Desktop inline-relay ceiling — not a real building. A recognizable house needs ~3K+ tris ≈ 40 KB+ ≈ 4× over. Real geometry therefore requires the **Web resource channel** (no size limit), not Desktop inline relay. (OBJ note: RVT→OBJ requires `advanced.modelGuid` + `objectIds:[-1]`; raw OBJ is huge — decimate with vertex clustering or gltf-transform/meshoptimizer + Draco.)
+
 ---
 
 ## 3. The web path (unblocks real geometry in-panel)
