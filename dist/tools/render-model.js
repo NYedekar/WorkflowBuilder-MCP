@@ -147,10 +147,25 @@ function buildViewerHtml(urn, token, tokenTtlSeconds) {
       justify-content: center; color: #ccc; font: 14px sans-serif;
       background: #1e1e1e; pointer-events: none;
     }
+    /* BIM properties panel (click an element → its data) */
+    #bim { position: fixed; top: 0; right: 0; width: 330px; max-width: 80vw; height: 100vh;
+           background: #252526f2; color: #e8e8ea; font: 12px/1.45 -apple-system, system-ui, sans-serif;
+           overflow-y: auto; display: none; border-left: 1px solid #3a3a3c; backdrop-filter: blur(6px); z-index: 10; }
+    #bim .h { font-size: 14px; font-weight: 600; padding: 14px 16px; border-bottom: 1px solid #3a3a3c;
+              position: sticky; top: 0; background: #2a2a2cf7; display: flex; justify-content: space-between; align-items: center; }
+    #bim .x { cursor: pointer; opacity: .6; font-size: 18px; line-height: 1; }
+    #bim .x:hover { opacity: 1; }
+    #bim .cat { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; opacity: .5; padding: 12px 16px 4px; }
+    #bim .row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 16px; }
+    #bim .row .k { opacity: .65; } #bim .row .v { text-align: right; word-break: break-word; max-width: 60%; }
+    #hint { position: fixed; bottom: 12px; left: 14px; color: #aaa; font: 12px sans-serif;
+            background: #2a2a2ccc; padding: 6px 12px; border-radius: 8px; z-index: 9; }
   </style>
 </head>
 <body>
   <div id="viewer"></div>
+  <div id="bim"></div>
+  <div id="hint">Click any element to see its BIM data</div>
   <div id="msg">Loading viewer…</div>
   <script src="${MD_BASE}/viewers/${VIEWER_VERSION}/viewer3D.min.js"></script>
   <script>
@@ -177,6 +192,36 @@ function buildViewerHtml(urn, token, tokenTtlSeconds) {
           document.getElementById('msg').textContent = 'Loading model…';
           var viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById('viewer'));
           viewer.start();
+
+          // Click an element → show its BIM properties in the side panel.
+          function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+          var panel = document.getElementById('bim');
+          viewer.addEventListener(Autodesk.Viewing.SELECTION_CHANGED_EVENT, function () {
+            var sel = viewer.getSelection();
+            if (!sel || !sel.length) { panel.style.display = 'none'; return; }
+            viewer.getProperties(sel[0], function (data) {
+              var groups = {};
+              (data.properties || []).forEach(function (p) {
+                if (p.hidden || p.displayValue === '' || p.displayValue == null) return;
+                var cat = p.displayCategory || 'Other';
+                (groups[cat] = groups[cat] || []).push(p);
+              });
+              var html = '<div class="h"><span>' + esc(data.name || 'Element') + '</span><span class="x">&times;</span></div>';
+              Object.keys(groups).forEach(function (cat) {
+                html += '<div class="cat">' + esc(cat) + '</div>';
+                groups[cat].forEach(function (p) {
+                  html += '<div class="row"><span class="k">' + esc(p.displayName) +
+                          '</span><span class="v">' + esc(p.displayValue) + '</span></div>';
+                });
+              });
+              panel.innerHTML = html;
+              panel.style.display = 'block';
+              var hint = document.getElementById('hint'); if (hint) hint.remove();
+              panel.querySelector('.x').onclick = function () { panel.style.display = 'none'; viewer.clearSelection(); };
+            });
+          });
+
           Autodesk.Viewing.Document.load(
             'urn:' + URN,
             function (doc) {
