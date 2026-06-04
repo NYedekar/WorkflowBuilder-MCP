@@ -1,0 +1,21 @@
+{
+  "id": "ExtractInventorBOM",
+  "description": "Extracts the Bill of Materials from an Inventor assembly (.iam zipped) to result.json. Each row contains partNumber, description, quantity, material, and mass.",
+  "engine": "Autodesk.Inventor+2025",
+  "commandLine": [
+    "$(engine.path)\\InventorCoreConsole.exe /i \"$(args[inputFile].path)\" /al \"$(appbundles[InventorBOMExtractor].path)\""
+  ],
+  "parameters": {
+    "inputFile": {
+      "verb": "get",
+      "description": "Zipped Inventor assembly (.zip) — must contain the root .iam at its top level or pointed to by pathInZip",
+      "localName": "inputFile.zip"
+    },
+    "resultJson": {
+      "verb": "put",
+      "localName": "result.json",
+      "description": "Extracted BOM as JSON array. Each element: { partNumber, description, quantity, material, mass, unit }"
+    }
+  },
+  "appbundles": ["{NICKNAME}.InventorBOMExtractor+prod"]
+}

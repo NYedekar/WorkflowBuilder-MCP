@@ -29713,96 +29713,6 @@
                     }
                   ],
                   "note": "Activity: Inventor.ExtractThumbnail+prod. Inventor part or assembly thumbnail / preview. Keywords: thumbnail preview PNG IPT IAM Inventor part assembly image render."
-                },
-                {
-                  "id": "inventor:InventorExportBOM",
-                  "alias": "InventorExportBOM",
-                  "qualifiedName": "com.autodesk.public.inventor.InventorExportBOM",
-                  "version": "1.0.0",
-                  "product": "Inventor",
-                  "groupId": "inventor:public-activities",
-                  "engine": "Autodesk.Inventor+2022, +2023, +2024, +2025, +2026",
-                  "risk": "SAFE",
-                  "ioShape": "sourceFile.iam \u2192 result.json",
-                  "activityRef": "Inventor.ExportBOM+prod",
-                  "accessPattern": "DA-PublicActivity",
-                  "runtimeRouting": {
-                    "supportsMultipleOperations": false
-                  },
-                  "contract": {
-                    "identity": {
-                      "name": "InventorExportBOM",
-                      "group": "public-activities",
-                      "scope": "Autodesk Public Activity"
-                    },
-                    "io": {
-                      "input": "sourceFile.iam",
-                      "output": "result.json"
-                    },
-                    "execution": {
-                      "accessPattern": "DA-PublicActivity",
-                      "interface": "Autodesk.Inventor+2022, +2023, +2024, +2025, +2026",
-                      "activityRef": "Inventor.ExportBOM+prod",
-                      "note": "No custom AppBundle required \u2014 Autodesk-published activity called directly."
-                    },
-                    "governance": {
-                      "riskLevel": "SAFE",
-                      "operationType": "read",
-                      "approval": "Auto-execute"
-                    },
-                    "consumers": {
-                      "targets": [
-                        "AI Agents",
-                        "Developers"
-                      ],
-                      "discovery": "get_capability() \u2192 Registry match"
-                    }
-                  },
-                  "description": "Extract the BOM from an Inventor assembly (IAM) as JSON (part number, description, quantity, material, mass). Input must be an assembly (IAM), not a part (IPT). No custom AppBundle required.",
-                  "apiId": "engine:Inventor",
-                  "capabilityGroupId": "inventor:public-activities",
-                  "authFlows": [
-                    "2LO-client-credentials"
-                  ],
-                  "operations": [
-                    {
-                      "operationId": "export-bill-of-materials",
-                      "displayName": "Export Bill of Materials",
-                      "description": "Extract the BOM from an Inventor assembly (IAM) as a JSON array with part number, description, quantity, material, and mass for each component.",
-                      "capabilityId": "inventor:InventorExportBOM",
-                      "groupId": "inventor:public-activities",
-                      "product": "Inventor",
-                      "engine": "Autodesk.Inventor+2022, +2023, +2024, +2025, +2026",
-                      "risk": "SAFE",
-                      "configSchema": null,
-                      "outputContract": "result.json",
-                      "ioShape": "sourceFile.iam \u2192 result.json",
-                      "modifiesFile": false,
-                      "readOnly": true,
-                      "destructive": false,
-                      "globalOperationId": "inventor.public.export-bill-of-materials",
-                      "callable": true,
-                      "effect": "read",
-                      "authScopes": [
-                        "code:all"
-                      ],
-                      "sourceVerificationStatus": "UNVERIFIED",
-                      "workItemTemplate": {
-                        "activityId": "Inventor.ExportBOM+prod",
-                        "arguments": {
-                          "InventorDoc": {
-                            "url": "{signed-input-url}",
-                            "verb": "get"
-                          },
-                          "Result": {
-                            "url": "{signed-output-url}",
-                            "verb": "put"
-                          }
-                        }
-                      }
-                    }
-                  ],
-                  "note": "Activity: Inventor.ExportBOM+prod. Inventor assembly Bill of Materials export. Keywords: BOM bill of materials assembly IAM parts list quantity mass ERP PLM JSON."
                 }
               ]
             },
@@ -29813,7 +29723,7 @@
               "capabilities": [
                 {
                   "id": "inventor:InventorBOMExtractor",
-                  "alias": "InventorBOMExtractor",
+                  "alias": "ExtractInventorBOM",
                   "qualifiedName": "com.autodesk.custom.inventor.InventorBOMExtractor",
                   "version": "1.0.0",
                   "product": "Inventor",
@@ -29884,7 +29794,7 @@
                       "authScopes": [
                         "code:all"
                       ],
-                      "sourceVerificationStatus": "UNVERIFIED",
+                      "sourceVerificationStatus": "VERIFIED",
                       "workItemTemplate": {
                         "activityId": "ExtractInventorBOM+prod",
                         "arguments": {
@@ -29898,10 +29808,21 @@
                             "verb": "put"
                           }
                         }
+                      },
+                      "activityId": "ExtractInventorBOM",
+                      "workItemArguments": {
+                        "inputFile": {
+                          "verb": "get",
+                          "description": "Zipped Inventor assembly (.zip containing .iam)"
+                        },
+                        "resultJson": {
+                          "verb": "put",
+                          "localName": "result.json"
+                        }
                       }
                     }
                   ],
-                  "note": "Custom AppBundle: InventorBOMExtractor. Source: NYedekar/APS_CapabilityAppBundles. Requires lib/inventor/autodesk.inventor.interop.dll for CI build. Keywords: BOM bill of materials Inventor IAM assembly parts list quantity hierarchy JSON."
+                  "note": "Custom AppBundle: InventorBOMExtractor. Source: NYedekar/APS_CapabilityAppBundles. Built WITHOUT the real interop DLL \u2014 uses a hand-rolled IL interop (lib/Inventor/Inventor.Interop.il) embedded via EmbedInteropTypes; ApplicationAddInServer DISPIDs are Inventor's real values (0x03001201-04). BOM is built from the assembly occurrence tree (structured BOM-view API E_FAILs under headless Inventor Server). VERIFIED end-to-end 2026-06-04: 129 components from the Autodesk Blower sample. Keywords: BOM bill of materials Inventor IAM assembly parts list quantity hierarchy JSON."
                 }
               ]
             }
