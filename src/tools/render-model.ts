@@ -272,8 +272,8 @@ function buildViewerHtml(urn: string, token: string, tokenTtlSeconds: number, se
     #apply-overlay .cxl:hover { background: rgba(255,255,255,.05); }
     #apply-overlay .cfm { background: rgba(127,176,255,.15); border-color: #7fb0ff; color: #7fb0ff; }
     #apply-overlay .cfm:hover { background: rgba(127,176,255,.25); }
-    #hint { position: fixed; bottom: 14px; left: 16px; color: #cfcfd6; font: 12px -apple-system, system-ui, sans-serif;
-            background: rgba(42,43,48,.85); padding: 7px 13px; border-radius: 9px; border: 1px solid #3c3d44; z-index: 9; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+    #hint { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); color: #cfcfd6; font: 12px -apple-system, system-ui, sans-serif;
+            background: rgba(42,43,48,.85); padding: 7px 13px; border-radius: 9px; border: 1px solid #3c3d44; z-index: 9; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); white-space: nowrap; }
   </style>
 </head>
 <body>
