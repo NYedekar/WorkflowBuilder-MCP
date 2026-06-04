@@ -15076,11 +15076,13 @@
                           },
                           "resultRvt": {
                             "url": "{signed-output-rvt-url}",
-                            "verb": "put"
+                            "verb": "put",
+                            "localName": "result.rvt"
                           },
                           "resultJson": {
                             "url": "{signed-output-json-url}",
-                            "verb": "put"
+                            "verb": "put",
+                            "localName": "result.json"
                           }
                         }
                       }
@@ -15144,11 +15146,13 @@
                           },
                           "resultRvt": {
                             "url": "{signed-output-rvt-url}",
-                            "verb": "put"
+                            "verb": "put",
+                            "localName": "result.rvt"
                           },
                           "resultJson": {
                             "url": "{signed-output-json-url}",
-                            "verb": "put"
+                            "verb": "put",
+                            "localName": "result.json"
                           }
                         }
                       }

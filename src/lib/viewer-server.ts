@@ -6,11 +6,52 @@ import { randomBytes } from "crypto";
 
 const PORT = 7830;
 
-// Disk-backed store: the MCP process is restarted often by Claude Desktop, which wiped the old
-// in-memory Map and 404'd every previously-issued viewer link. Persisting to a temp dir makes
-// links survive restarts — and any server instance (on any port) can serve any id from the same dir.
 const STORE_DIR = path.join(os.tmpdir(), "aps-mcp-viewers");
-const MAX_AGE_MS = 60 * 60 * 1000; // viewer token lives ~1h; serve the file within that window
+const MAX_AGE_MS = 60 * 60 * 1000;
+
+// Pending viewer-update store: { oss_url, changes[] } posted by the viewer HTML, consumed by apply_viewer_updates.
+const PENDING_DIR = path.join(os.tmpdir(), "aps-mcp-pending");
+function ensurePendingDir() { try { fs.mkdirSync(PENDING_DIR, { recursive: true }); } catch { /* exists */ } }
+function pendingFile(id: string) { return path.join(PENDING_DIR, `${id}.json`); }
+function statusFile(id: string)  { return path.join(PENDING_DIR, `${id}.status.json`); }
+
+export interface PendingChange { elementId: string; elementName?: string; parameter: string; value: string; }
+export interface PendingPayload { session_id: string; oss_url: string; changes: PendingChange[]; submitted_at: string; }
+export interface PendingStatus  { status: "submitted" | "processing" | "done" | "failed"; new_file_path?: string; error?: string; updated_at: string; }
+
+export function storePending(payload: PendingPayload): void {
+  ensurePendingDir();
+  fs.writeFileSync(pendingFile(payload.session_id), JSON.stringify(payload), "utf-8");
+  fs.writeFileSync(statusFile(payload.session_id), JSON.stringify({ status: "submitted", updated_at: new Date().toISOString() }), "utf-8");
+}
+
+export function readPending(sessionId: string): PendingPayload | null {
+  try { return JSON.parse(fs.readFileSync(pendingFile(sessionId), "utf-8")) as PendingPayload; }
+  catch { return null; }
+}
+
+export function readPendingStatus(sessionId: string): PendingStatus | null {
+  try { return JSON.parse(fs.readFileSync(statusFile(sessionId), "utf-8")) as PendingStatus; }
+  catch { return null; }
+}
+
+export function completePending(sessionId: string, result: { status: "processing" | "done" | "failed"; new_file_path?: string; error?: string }): void {
+  ensurePendingDir();
+  fs.writeFileSync(statusFile(sessionId), JSON.stringify({ ...result, updated_at: new Date().toISOString() }), "utf-8");
+}
+
+/** Return the most recently submitted session ID across all pending files (for apply_viewer_updates without explicit session_id). */
+export function findLatestPendingSession(): string | null {
+  try {
+    ensurePendingDir();
+    const files = fs.readdirSync(PENDING_DIR)
+      .filter(f => f.endsWith(".json") && !f.endsWith(".status.json"))
+      .map(f => ({ f, mtime: fs.statSync(path.join(PENDING_DIR, f)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime);
+    if (!files.length) return null;
+    return files[0].f.replace(/\.json$/, "");
+  } catch { return null; }
+}
 
 let serverPort: number = PORT;
 let started = false;
@@ -43,7 +84,64 @@ export function startViewerServer(): void {
   function tryListen(port: number): void {
     const srv = http.createServer((req, res) => {
       res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
       res.setHeader("Content-Security-Policy", "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;");
+
+      // CORS preflight (needed for JSON POSTs from file:// pages)
+      if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
+
+      // ── Pending-update endpoints (viewer → MCP) ─────────────────────────────
+
+      // POST /pending/:id — viewer submits edited properties; body is PendingPayload JSON
+      const postPending = req.url?.match(/^\/pending\/([a-f0-9]{16})$/);
+      if (postPending && req.method === "POST") {
+        const id = postPending[1];
+        let body = "";
+        req.on("data", (chunk) => { body += chunk; });
+        req.on("end", () => {
+          try {
+            const payload = JSON.parse(body) as PendingPayload;
+            payload.session_id = id;
+            payload.submitted_at = new Date().toISOString();
+            storePending(payload);
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true, session_id: id }));
+          } catch {
+            res.writeHead(400); res.end("Bad JSON");
+          }
+        });
+        return;
+      }
+
+      // GET /pending/:id/status — viewer polls for job completion
+      const getPendingStatus = req.url?.match(/^\/pending\/([a-f0-9]{16})\/status$/);
+      if (getPendingStatus && req.method === "GET") {
+        const id = getPendingStatus[1];
+        const s = readPendingStatus(id);
+        res.writeHead(s ? 200 : 404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(s ?? { status: "not_found" }));
+        return;
+      }
+
+      // POST /pending/:id/complete — MCP tool marks the job done
+      const postComplete = req.url?.match(/^\/pending\/([a-f0-9]{16})\/complete$/);
+      if (postComplete && req.method === "POST") {
+        const id = postComplete[1];
+        let body = "";
+        req.on("data", (chunk) => { body += chunk; });
+        req.on("end", () => {
+          try {
+            const result = JSON.parse(body) as { status: "done" | "failed"; new_file_path?: string; error?: string };
+            completePending(id, result);
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ ok: true }));
+          } catch {
+            res.writeHead(400); res.end("Bad JSON");
+          }
+        });
+        return;
+      }
 
       // Image route: serve a thumbnail PNG (for Markdown-image embedding in chat).
       const imgId = req.url?.match(/^\/img\/([a-f0-9]{16})\.png$/)?.[1];

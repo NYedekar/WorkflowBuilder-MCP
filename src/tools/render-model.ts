@@ -93,6 +93,14 @@ export const renderModelSchema = z.object({
     .positive()
     .optional()
     .describe("Estimated total session output tokens. Provide on the final (success) render to auto-record usage."),
+  root_filename: z
+    .string()
+    .optional()
+    .describe(
+      "Override the filename hint sent to Model Derivative. Use when the OSS object key has the wrong " +
+        "extension (e.g. DA output saved as '.json' but is really a Revit file). " +
+        "Example: 'model.rvt'. MD uses this to select the correct translator."
+    ),
 });
 
 export type RenderModelInput = z.infer<typeof renderModelSchema>;
@@ -151,7 +159,8 @@ async function startSvf2Translation(
   token: string,
   urn: string,
   region: string,
-  force: boolean
+  force: boolean,
+  rootFilename?: string
 ): Promise<void> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
@@ -160,11 +169,16 @@ async function startSvf2Translation(
   // C4: only send x-ads-force when explicitly requested — prevents wiping valid existing derivatives
   if (force) headers["x-ads-force"] = "true";
 
+  // rootFilename tells MD the real file type when the OSS key has the wrong extension
+  // (e.g. DA output stored as .json but actually an RVT binary)
+  const inputBlock: Record<string, unknown> = { urn };
+  if (rootFilename) inputBlock.rootFilename = rootFilename;
+
   const res = await apiFetch(`${MD_BASE}/designdata/job`, {
     method: "POST",
     headers,
     body: JSON.stringify({
-      input: { urn },
+      input: inputBlock,
       output: {
         region, // H4: required for EMEA data-residency; harmless for US
         formats: [{ type: "svf2", views: ["2d", "3d"] }],
@@ -179,7 +193,7 @@ async function startSvf2Translation(
   }
 }
 
-function buildViewerHtml(urn: string, token: string, tokenTtlSeconds: number): string {
+function buildViewerHtml(urn: string, token: string, tokenTtlSeconds: number, sessionId: string, ossUrl: string): string {
   // C3: viewer mode is experimental — rendering as artifact depends on Claude Desktop heuristics.
   // C1: JSON.stringify() for safe embedding — guards against token/URN chars breaking JS string literals.
   // H3: tokenTtlSeconds is the actual remaining TTL from the cache, not a hardcoded 3600.
@@ -217,8 +231,47 @@ function buildViewerHtml(urn: string, token: string, tokenTtlSeconds: number): s
                 color: #7fb0ff; padding: 15px 18px 6px; }
     #bim .row { display: flex; justify-content: space-between; gap: 14px; padding: 4px 18px; border-radius: 5px; }
     #bim .row:hover { background: rgba(255,255,255,.045); }
-    #bim .row .k { opacity: .6; flex: 0 1 auto; }
-    #bim .row .v { text-align: right; word-break: break-word; max-width: 58%; font-variant-numeric: tabular-nums; }
+    #bim .row .k { opacity: .6; flex: 0 1 auto; min-width: 0; }
+    #bim .row .val-wrap { display: flex; align-items: center; gap: 5px; justify-content: flex-end; max-width: 58%; min-width: 0; }
+    #bim .row .v { text-align: right; word-break: break-word; font-variant-numeric: tabular-nums; min-width: 0; }
+    #bim .row.edited .v { color: #7fb0ff; }
+    #bim .edit-btn { opacity: 0; cursor: pointer; background: none; border: none; padding: 0 2px;
+                     color: #7fb0ff; font-size: 12px; line-height: 1; transition: opacity .15s; flex-shrink: 0; }
+    #bim .row:hover .edit-btn { opacity: .55; }
+    #bim .edit-btn:hover { opacity: 1 !important; }
+    #bim input.edit-field { background: rgba(127,176,255,.1); border: 1px solid rgba(127,176,255,.35);
+                             border-radius: 4px; color: #ececf0; font: inherit; padding: 1px 5px;
+                             width: 110px; text-align: right; outline: none; }
+    #bim input.edit-field:focus { border-color: #7fb0ff; }
+    #bim .edit-actions { display: flex; gap: 2px; align-items: center; }
+    #bim .edit-actions button { background: none; border: none; cursor: pointer; font-size: 13px; padding: 0 2px; line-height: 1; }
+    #bim .edit-actions .ok { color: #5cf; }
+    #bim .edit-actions .cancel { color: #f77; }
+    #bim .footer { border-top: 1px solid #3c3d44; padding: 12px 16px; flex-shrink: 0; }
+    #bim .apply-btn { width: 100%; padding: 9px 14px; background: rgba(127,176,255,.12); border: 1px solid rgba(127,176,255,.45);
+                      border-radius: 9px; color: #7fb0ff; font: 13px -apple-system, system-ui, sans-serif;
+                      cursor: pointer; transition: background .15s; text-align: center; }
+    #bim .apply-btn:hover { background: rgba(127,176,255,.22); }
+    #bim .apply-status { font-size: 12px; opacity: .7; text-align: center; padding: 4px 0; }
+    #bim .apply-status.done { color: #5cf; opacity: 1; }
+    #apply-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.78); z-index: 20; display: none;
+                     align-items: center; justify-content: center; font: 14px -apple-system, system-ui, sans-serif; color: #ececf0; }
+    #apply-overlay .box { background: #2a2b30; border: 1px solid #3c3d44; border-radius: 14px;
+                           padding: 26px 28px; max-width: 440px; width: 90vw; box-shadow: 0 18px 56px rgba(0,0,0,.6); }
+    #apply-overlay .title { font-size: 15px; font-weight: 650; margin-bottom: 6px; }
+    #apply-overlay .sub { font-size: 12px; opacity: .55; margin-bottom: 14px; line-height: 1.5; }
+    #apply-overlay .change-list { max-height: 180px; overflow-y: auto; background: rgba(0,0,0,.22);
+                                   border-radius: 8px; padding: 8px 12px; margin-bottom: 18px; }
+    #apply-overlay .ci { font-size: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+    #apply-overlay .ci:last-child { border-bottom: none; }
+    #apply-overlay .ci b { color: #ececf0; }
+    #apply-overlay .ci .who { opacity: .45; font-size: 11px; }
+    #apply-overlay .btns { display: flex; gap: 10px; }
+    #apply-overlay button { flex: 1; padding: 10px; border-radius: 8px; font: 13px -apple-system, system-ui, sans-serif; cursor: pointer; border: 1px solid; }
+    #apply-overlay .cxl { background: transparent; border-color: #4a4b52; color: #ececf0; }
+    #apply-overlay .cxl:hover { background: rgba(255,255,255,.05); }
+    #apply-overlay .cfm { background: rgba(127,176,255,.15); border-color: #7fb0ff; color: #7fb0ff; }
+    #apply-overlay .cfm:hover { background: rgba(127,176,255,.25); }
     #hint { position: fixed; bottom: 14px; left: 16px; color: #cfcfd6; font: 12px -apple-system, system-ui, sans-serif;
             background: rgba(42,43,48,.85); padding: 7px 13px; border-radius: 9px; border: 1px solid #3c3d44; z-index: 9; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
   </style>
@@ -226,7 +279,8 @@ function buildViewerHtml(urn: string, token: string, tokenTtlSeconds: number): s
 <body>
   <div id="viewer"></div>
   <div id="bim"></div>
-  <div id="hint">Click any element to see its BIM data</div>
+  <div id="apply-overlay"></div>
+  <div id="hint">Click any element to see its BIM data · Edit values with ✎ · Apply to Model to write back</div>
   <div id="msg">Loading viewer…</div>
   <script src="${MD_BASE}/viewers/${VIEWER_VERSION}/viewer3D.min.js"></script>
   <script>
@@ -234,6 +288,9 @@ function buildViewerHtml(urn: string, token: string, tokenTtlSeconds: number): s
       var URN = ${JSON.stringify(urn)};
       var TOKEN = ${JSON.stringify(token)};
       var TTL = ${JSON.stringify(tokenTtlSeconds)};
+      var SESSION_ID = ${JSON.stringify(sessionId)};
+      var OSS_URL = ${JSON.stringify(ossUrl)};
+      var LOCAL_SERVER = 'http://127.0.0.1:7830';
 
       function onError(code, msg) {
         document.getElementById('msg').innerHTML =
@@ -254,43 +311,257 @@ function buildViewerHtml(urn: string, token: string, tokenTtlSeconds: number): s
           var viewer = new Autodesk.Viewing.GuiViewer3D(document.getElementById('viewer'));
           viewer.start();
 
-          // Click an element → show its BIM properties in the side panel.
           function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-          // Format numbers to 2 decimals: number-typed values, and any decimal embedded in a string
-          // (e.g. raw "12.4671916" or "12.4671916 ft" → "12.47" / "12.47 ft"). Integers/IDs untouched.
           function fmt(v) {
             if (typeof v === 'number' && isFinite(v)) return v.toFixed(2);
             if (typeof v === 'string') return v.replace(/-?\\d+\\.\\d+/g, function (m) { return parseFloat(m).toFixed(2); });
             return String(v == null ? '' : v);
           }
-          var panel = document.getElementById('bim');
-          viewer.addEventListener(Autodesk.Viewing.SELECTION_CHANGED_EVENT, function () {
-            var sel = viewer.getSelection();
-            if (!sel || !sel.length) { panel.style.display = 'none'; return; }
-            viewer.getProperties(sel[0], function (data) {
-              var groups = {}, count = 0;
-              (data.properties || []).forEach(function (p) {
-                if (p.hidden || p.displayValue === '' || p.displayValue == null) return;
-                var cat = p.displayCategory || 'Other';
-                (groups[cat] = groups[cat] || []).push(p); count++;
-              });
-              var html = '<div class="h"><div class="name">' + esc(data.name || 'Element') +
-                         '</div><div class="sub">' + count + ' propert' + (count === 1 ? 'y' : 'ies') +
-                         '</div><span class="x">&times;</span></div><div class="body">';
-              Object.keys(groups).forEach(function (cat) {
-                html += '<div class="cat">' + esc(cat) + '</div>';
-                groups[cat].forEach(function (p) {
-                  html += '<div class="row"><span class="k">' + esc(p.displayName) +
-                          '</span><span class="v">' + esc(fmt(p.displayValue)) + '</span></div>';
-                });
-              });
-              html += '</div>';
-              panel.innerHTML = html;
-              panel.style.display = 'flex';
-              var hint = document.getElementById('hint'); if (hint) hint.remove();
-              panel.querySelector('.x').onclick = function () { panel.style.display = 'none'; viewer.clearSelection(); };
+
+          var panel       = document.getElementById('bim');
+          var overlay     = document.getElementById('apply-overlay');
+          var edits       = {};               // key: dbId+'::'+displayName → edited value string
+          var externalIds = {};               // dbId → externalId (Revit ElementId)
+          var elemNames   = {};               // dbId → element name (fallback for DA matching)
+          var applyState  = 'idle';           // 'idle' | 'submitted' | 'done' | 'failed'
+          var pollTimer   = null;
+
+          // ── Render BIM panel ──────────────────────────────────────────────
+          function renderPanel(dbId, data) {
+            if (data.externalId) externalIds[dbId] = String(data.externalId);
+            if (data.name)       elemNames[dbId]   = data.name;
+
+            var groups = {}, count = 0;
+            var ALWAYS_SHOW = ['Comments', 'Mark', 'Type Comments'];
+            (data.properties || []).forEach(function (p) {
+              if (p.hidden) return;
+              var isEmpty = p.displayValue === '' || p.displayValue == null;
+              if (isEmpty && ALWAYS_SHOW.indexOf(p.displayName) === -1) return;
+              var cat = p.displayCategory || 'Other';
+              (groups[cat] = groups[cat] || []).push(p); count++;
             });
+            var idLine = 'dbId: ' + dbId;
+            if (data.externalId) {
+              var decoded = decodeRevitElementId(String(data.externalId));
+              idLine += ' · ElementId: ' + esc(decoded);
+              // If the UniqueId was decoded to a different value, also show the raw UniqueId
+              if (decoded !== String(data.externalId)) {
+                idLine += ' (uid …' + esc(String(data.externalId).slice(-8)) + ')';
+              }
+            }
+            var html = '<div class="h"><div class="name">' + esc(data.name || 'Element') +
+                       '</div><div class="sub">' + esc(idLine) + ' · ' + count + ' propert' + (count === 1 ? 'y' : 'ies') +
+                       '</div><span class="x">×</span></div><div class="body">';
+            Object.keys(groups).forEach(function (cat) {
+              html += '<div class="cat">' + esc(cat) + '</div>';
+              groups[cat].forEach(function (p) {
+                var editKey = dbId + '::' + p.displayName;
+                var cur = edits[editKey] !== undefined ? edits[editKey] : p.displayValue;
+                var isEdited = edits[editKey] !== undefined;
+                html += '<div class="row' + (isEdited ? ' edited' : '') + '" data-key="' + esc(editKey) +
+                        '" data-orig="' + esc(String(p.displayValue)) + '">' +
+                        '<span class="k">' + esc(p.displayName) + '</span>' +
+                        '<span class="val-wrap">' +
+                        '<span class="v">' + esc(fmt(cur)) + '</span>' +
+                        '<button class="edit-btn" title="Edit value">✎</button>' +
+                        '</span></div>';
+              });
+            });
+            html += '</div>';
+
+            // Footer — shows Apply button, submission status, or done banner
+            var editCount = Object.keys(edits).length;
+            html += '<div class="footer">';
+            if (applyState === 'done') {
+              html += '<div class="apply-status done">✓ Model updated — new viewer opened</div>';
+            } else if (applyState === 'submitted') {
+              html += '<div class="apply-status">Changes submitted — ask Claude: "apply viewer updates"</div>';
+            } else if (editCount > 0) {
+              html += '<button class="apply-btn">' + editCount + ' edit' + (editCount === 1 ? '' : 's') +
+                      ' — Apply to Model</button>';
+            }
+            html += '</div>';
+
+            panel.innerHTML = html;
+            panel.style.display = 'flex';
+            var hint = document.getElementById('hint'); if (hint) hint.remove();
+          }
+
+          // Revit UniqueId → integer ElementId.
+          // UniqueId format: {GUID 5-part}-{8-hex ElementId}  e.g. "a6aa132d-...-0003b64a" → "243274"
+          function decodeRevitElementId(uid) {
+            if (!uid) return uid;
+            var parts = uid.split('-');
+            // Standard Revit UniqueId has 6 dash-separated segments; last is the hex ElementId
+            if (parts.length === 6) {
+              var n = parseInt(parts[5], 16);
+              if (!isNaN(n) && n > 0) return String(n);
+            }
+            return uid; // not a recognisable UniqueId — pass through unchanged
+          }
+
+          // ── Build changes array from edits map ────────────────────────────
+          function buildChanges() {
+            return Object.keys(edits).map(function (key) {
+              var parts    = key.split('::');
+              var dbId     = parts[0];
+              var propName = parts.slice(1).join('::');
+              var rawId    = externalIds[dbId] || dbId;
+              return {
+                elementId:   decodeRevitElementId(rawId),
+                elementName: elemNames[dbId] || '',
+                parameter:   propName,
+                value:       edits[key]
+              };
+            });
+          }
+
+          // ── Show confirmation overlay ─────────────────────────────────────
+          function showConfirmOverlay() {
+            var changes  = buildChanges();
+            var listHtml = changes.map(function (c) {
+              return '<div class="ci"><b>' + esc(c.parameter) + '</b> → ' + esc(c.value) +
+                     ' <span class="who">(' + esc(c.elementName || c.elementId) + ')</span></div>';
+            }).join('');
+            overlay.innerHTML =
+              '<div class="box">' +
+              '<div class="title">Apply ' + changes.length + ' change' + (changes.length === 1 ? '' : 's') + ' to Model</div>' +
+              '<div class="sub">Saves changes to the local server, then ask Claude to run<br>' +
+              '<b>apply_viewer_updates</b> (session: ' + esc(SESSION_ID) + ') to kick off the DA job.</div>' +
+              '<div class="change-list">' + listHtml + '</div>' +
+              '<div class="btns">' +
+              '<button class="cxl">Cancel</button>' +
+              '<button class="cfm">Submit Changes</button>' +
+              '</div></div>';
+            overlay.style.display = 'flex';
+          }
+
+          // ── Submit to local server + start polling ────────────────────────
+          function submitChanges() {
+            var changes = buildChanges();
+            overlay.innerHTML =
+              '<div class="box">' +
+              '<div class="title">Changes Saved</div>' +
+              '<div class="sub">Ask Claude: <b>"apply viewer updates"</b><br>' +
+              'Session ID: <code>' + esc(SESSION_ID) + '</code></div>' +
+              '<div class="btns" style="margin-top:18px"><button class="cxl">Close</button></div>' +
+              '</div>';
+            applyState = 'submitted';
+
+            fetch(LOCAL_SERVER + '/pending/' + SESSION_ID, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ session_id: SESSION_ID, oss_url: OSS_URL, changes: changes })
+            }).catch(function () { /* server may not be running — changes shown on screen */ });
+
+            startPolling();
+          }
+
+          // ── Poll for job completion ───────────────────────────────────────
+          function startPolling() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = setInterval(function () {
+              fetch(LOCAL_SERVER + '/pending/' + SESSION_ID + '/status')
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                  if (data.status === 'done') {
+                    applyState = 'done';
+                    clearInterval(pollTimer); pollTimer = null;
+                    var fp = data.new_file_path ? esc(data.new_file_path) : '';
+                    overlay.innerHTML =
+                      '<div class="box">' +
+                      '<div class="title" style="color:#5cf">✓ Model Updated!</div>' +
+                      '<div class="sub">The Revit model has been updated. A new viewer has been opened in your browser.' +
+                      (fp ? '<br><small style="opacity:.5">' + fp + '</small>' : '') + '</div>' +
+                      '<div class="btns" style="margin-top:18px"><button class="cxl">Close</button></div></div>';
+                    overlay.style.display = 'flex';
+                  } else if (data.status === 'failed') {
+                    applyState = 'failed';
+                    clearInterval(pollTimer); pollTimer = null;
+                    overlay.innerHTML =
+                      '<div class="box">' +
+                      '<div class="title" style="color:#f77">✗ Update Failed</div>' +
+                      '<div class="sub">' + esc(data.error || 'DA job failed') + '</div>' +
+                      '<div class="btns" style="margin-top:18px"><button class="cxl">Close</button></div></div>';
+                    overlay.style.display = 'flex';
+                  }
+                })
+                .catch(function () { /* server may not be up yet */ });
+            }, 10000);
+          }
+
+          // ── Event delegation: panel + overlay ────────────────────────────
+          document.addEventListener('click', function (e) {
+            var t = e.target;
+            // Panel close
+            if (t.classList.contains('x')) { panel.style.display = 'none'; viewer.clearSelection(); return; }
+
+            // Row edits
+            var row = t.closest ? t.closest('.row') : null;
+            var key = row ? row.getAttribute('data-key') : null;
+            if (t.classList.contains('edit-btn') && row) {
+              var orig = row.getAttribute('data-orig');
+              var cur  = edits[key] !== undefined ? edits[key] : orig;
+              row.querySelector('.val-wrap').innerHTML =
+                '<input class="edit-field" value="' + esc(fmt(cur)) + '">' +
+                '<span class="edit-actions"><button class="ok" title="Apply">✓</button>' +
+                '<button class="cancel" title="Cancel">×</button></span>';
+              var inp = row.querySelector('input'); inp.focus(); inp.select();
+              return;
+            }
+            if (t.classList.contains('ok') && row) {
+              var inp2 = row.querySelector('input.edit-field');
+              edits[key] = inp2.value; row.classList.add('edited');
+              row.querySelector('.val-wrap').innerHTML =
+                '<span class="v">' + esc(fmt(inp2.value)) + '</span>' +
+                '<button class="edit-btn" title="Edit value">✎</button>';
+              // Refresh footer edit count
+              var footer = panel.querySelector('.footer');
+              if (footer) {
+                var cnt = Object.keys(edits).length;
+                footer.innerHTML = (applyState === 'idle' && cnt > 0)
+                  ? '<button class="apply-btn">' + cnt + ' edit' + (cnt === 1 ? '' : 's') + ' — Apply to Model</button>'
+                  : footer.innerHTML;
+              }
+              return;
+            }
+            if (t.classList.contains('cancel') && row) {
+              var orig3 = row.getAttribute('data-orig');
+              var cur3  = edits[key] !== undefined ? edits[key] : orig3;
+              row.querySelector('.val-wrap').innerHTML =
+                '<span class="v">' + esc(fmt(cur3)) + '</span>' +
+                '<button class="edit-btn" title="Edit value">✎</button>';
+              return;
+            }
+
+            // Apply button
+            if (t.classList.contains('apply-btn')) { showConfirmOverlay(); return; }
+
+            // Overlay buttons
+            if (t.classList.contains('cfm')) { submitChanges(); return; }
+            if (t.classList.contains('cxl')) { overlay.style.display = 'none'; return; }
+          });
+
+          // Enter / Escape in edit inputs
+          document.addEventListener('keydown', function (e) {
+            if (!e.target || e.target.tagName !== 'INPUT' || !e.target.classList.contains('edit-field')) return;
+            if (e.key === 'Enter')  { e.target.closest('.row').querySelector('.ok').click();     e.preventDefault(); }
+            if (e.key === 'Escape') { e.target.closest('.row').querySelector('.cancel').click(); e.preventDefault(); }
+          });
+
+          // AGGREGATE_SELECTION_CHANGED_EVENT gives (model, dbIdArray) directly — avoids the
+          // multi-model routing bug in viewer.getProperties() that resolves the wrong node.
+          viewer.addEventListener(Autodesk.Viewing.AGGREGATE_SELECTION_CHANGED_EVENT, function (e) {
+            if (!e.selections || !e.selections.length || !e.selections[0].dbIdArray.length) {
+              panel.style.display = 'none'; return;
+            }
+            var sel   = e.selections[0];
+            var model = sel.model;
+            var dbId  = sel.dbIdArray[0];
+            model.getProperties(dbId, function (data) {
+              renderPanel(dbId, data);
+            }, function () { /* getProperties failed — leave panel as-is */ });
           });
 
           Autodesk.Viewing.Document.load(
@@ -345,7 +616,7 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
   if (!manifest) {
     // No translation exists — start one
     try {
-      await startSvf2Translation(writeToken, urn, input.region!, input.force_retranslate!);
+      await startSvf2Translation(writeToken, urn, input.region!, input.force_retranslate!, input.root_filename);
     } catch (err) {
       return { status: "error", error: `Failed to start SVF2 translation: ${String(err)}` };
     }
@@ -412,7 +683,9 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
   // full Autodesk Viewer (real geometry + materials + BIM), valid until the token expires (~1h;
   // APS 2LO cap). Durable/shareable links come later via a hosted token-endpoint service.
   // (In-panel 3D parked: Claude Desktop artifact CSP blocks the live viewer; MCP Apps UI = #165.)
-  const viewerHtml = buildViewerHtml(urn, viewerToken, viewerTtl);
+  const { randomBytes } = await import("crypto");
+  const sessionId = randomBytes(8).toString("hex");
+  const viewerHtml = buildViewerHtml(urn, viewerToken, viewerTtl, sessionId, input.oss_url);
   const expiresAt = new Date(Date.now() + viewerTtl * 1000).toISOString();
 
   const objectKey = input.oss_url.split("/").pop() ?? "model";

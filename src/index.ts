@@ -99,6 +99,10 @@ import {
 import { buildPromptList, buildPromptMessages } from "./lib/prompt-builder.js";
 import { startViewerServer } from "./lib/viewer-server.js";
 import {
+  applyViewerUpdatesSchema,
+  handleApplyViewerUpdates,
+} from "./tools/apply-viewer-updates.js";
+import {
   exportSkillForClaudeSchema,
   handleExportSkillForClaude,
 } from "./tools/export-skill-zip.js";
@@ -395,6 +399,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         _meta: { ui: { resourceUri: SAVE_SKILL_UI_URI, visibility: ["model", "app"] } },
       },
       {
+        name: "apply_viewer_updates",
+        description:
+          "Apply property edits made in the APS Viewer panel back to the Revit model via Design Automation. " +
+          "CALL THIS when the user says 'apply viewer updates', 'push changes to the model', or similar — " +
+          "after they have edited element properties in the viewer and clicked 'Apply to Model'. " +
+          "TWO-PHASE: (1) First call (no output_rvt_oss_url): reads pending edits, submits RevitParameterUpdater DA job, " +
+          "returns workflow_handle — then poll get_workflow_status until success. " +
+          "(2) Second call (with output_rvt_oss_url from outputOssUrls): re-renders the updated .rvt, " +
+          "opens new viewer, and notifies the original browser tab to auto-refresh.",
+        inputSchema: zodToJsonSchema(applyViewerUpdatesSchema),
+      },
+      {
         name: "render_viewer_poc",
         description:
           "PROOF-OF-CONCEPT: render a rotating 3D WebGL cube INLINE in the conversation via MCP Apps UI. " +
@@ -492,6 +508,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Return the CallToolResult directly so structuredContent reaches the MCP Apps iframe
         // (the generic wrapper below would otherwise stringify everything into a text block).
         return handleOfferSaveSkillButton(offerSaveSkillButtonSchema.parse(args));
+      case "apply_viewer_updates":
+        result = await handleApplyViewerUpdates(applyViewerUpdatesSchema.parse(args ?? {}));
+        break;
       case "render_viewer_poc":
         // Return directly so structuredContent reaches the linked MCP Apps UI iframe.
         return handleRenderViewerPoc(renderViewerPocSchema.parse(args));
