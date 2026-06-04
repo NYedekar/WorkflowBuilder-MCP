@@ -148,18 +148,27 @@ function buildViewerHtml(urn, token, tokenTtlSeconds) {
       background: #1e1e1e; pointer-events: none;
     }
     /* BIM properties panel (click an element → its data) */
-    #bim { position: fixed; top: 0; right: 0; width: 330px; max-width: 80vw; height: 100vh;
-           background: #252526f2; color: #e8e8ea; font: 12px/1.45 -apple-system, system-ui, sans-serif;
-           overflow-y: auto; display: none; border-left: 1px solid #3a3a3c; backdrop-filter: blur(6px); z-index: 10; }
-    #bim .h { font-size: 14px; font-weight: 600; padding: 14px 16px; border-bottom: 1px solid #3a3a3c;
-              position: sticky; top: 0; background: #2a2a2cf7; display: flex; justify-content: space-between; align-items: center; }
-    #bim .x { cursor: pointer; opacity: .6; font-size: 18px; line-height: 1; }
-    #bim .x:hover { opacity: 1; }
-    #bim .cat { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; opacity: .5; padding: 12px 16px 4px; }
-    #bim .row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 16px; }
-    #bim .row .k { opacity: .65; } #bim .row .v { text-align: right; word-break: break-word; max-width: 60%; }
-    #hint { position: fixed; bottom: 12px; left: 14px; color: #aaa; font: 12px sans-serif;
-            background: #2a2a2ccc; padding: 6px 12px; border-radius: 8px; z-index: 9; }
+    #bim { position: fixed; top: 16px; right: 16px; bottom: 16px; width: 344px; max-width: 84vw;
+           background: rgba(30,31,36,.92); color: #ececf0; font: 12.5px/1.5 -apple-system, system-ui, sans-serif;
+           border: 1px solid #3c3d44; border-radius: 14px; box-shadow: 0 14px 44px rgba(0,0,0,.5);
+           display: none; flex-direction: column; overflow: hidden; z-index: 10; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+    #bim .h { padding: 15px 18px 13px; border-bottom: 1px solid #3c3d44; position: relative;
+              background: linear-gradient(180deg, rgba(45,46,53,.6), rgba(30,31,36,0)); }
+    #bim .h .name { font-size: 15px; font-weight: 650; letter-spacing: -.01em; padding-right: 24px; }
+    #bim .h .sub { font-size: 11px; opacity: .5; margin-top: 3px; }
+    #bim .h .x { position: absolute; top: 11px; right: 14px; cursor: pointer; opacity: .45; font-size: 21px; line-height: 1; }
+    #bim .h .x:hover { opacity: 1; }
+    #bim .body { overflow-y: auto; padding-bottom: 12px; }
+    #bim .body::-webkit-scrollbar { width: 9px; }
+    #bim .body::-webkit-scrollbar-thumb { background: #4a4b52; border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+    #bim .cat { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em;
+                color: #7fb0ff; padding: 15px 18px 6px; }
+    #bim .row { display: flex; justify-content: space-between; gap: 14px; padding: 4px 18px; border-radius: 5px; }
+    #bim .row:hover { background: rgba(255,255,255,.045); }
+    #bim .row .k { opacity: .6; flex: 0 1 auto; }
+    #bim .row .v { text-align: right; word-break: break-word; max-width: 58%; font-variant-numeric: tabular-nums; }
+    #hint { position: fixed; bottom: 14px; left: 16px; color: #cfcfd6; font: 12px -apple-system, system-ui, sans-serif;
+            background: rgba(42,43,48,.85); padding: 7px 13px; border-radius: 9px; border: 1px solid #3c3d44; z-index: 9; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
   </style>
 </head>
 <body>
@@ -196,27 +205,37 @@ function buildViewerHtml(urn, token, tokenTtlSeconds) {
           // Click an element → show its BIM properties in the side panel.
           function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+          // Format numbers to 2 decimals: number-typed values, and any decimal embedded in a string
+          // (e.g. raw "12.4671916" or "12.4671916 ft" → "12.47" / "12.47 ft"). Integers/IDs untouched.
+          function fmt(v) {
+            if (typeof v === 'number' && isFinite(v)) return v.toFixed(2);
+            if (typeof v === 'string') return v.replace(/-?\\d+\\.\\d+/g, function (m) { return parseFloat(m).toFixed(2); });
+            return String(v == null ? '' : v);
+          }
           var panel = document.getElementById('bim');
           viewer.addEventListener(Autodesk.Viewing.SELECTION_CHANGED_EVENT, function () {
             var sel = viewer.getSelection();
             if (!sel || !sel.length) { panel.style.display = 'none'; return; }
             viewer.getProperties(sel[0], function (data) {
-              var groups = {};
+              var groups = {}, count = 0;
               (data.properties || []).forEach(function (p) {
                 if (p.hidden || p.displayValue === '' || p.displayValue == null) return;
                 var cat = p.displayCategory || 'Other';
-                (groups[cat] = groups[cat] || []).push(p);
+                (groups[cat] = groups[cat] || []).push(p); count++;
               });
-              var html = '<div class="h"><span>' + esc(data.name || 'Element') + '</span><span class="x">&times;</span></div>';
+              var html = '<div class="h"><div class="name">' + esc(data.name || 'Element') +
+                         '</div><div class="sub">' + count + ' propert' + (count === 1 ? 'y' : 'ies') +
+                         '</div><span class="x">&times;</span></div><div class="body">';
               Object.keys(groups).forEach(function (cat) {
                 html += '<div class="cat">' + esc(cat) + '</div>';
                 groups[cat].forEach(function (p) {
                   html += '<div class="row"><span class="k">' + esc(p.displayName) +
-                          '</span><span class="v">' + esc(p.displayValue) + '</span></div>';
+                          '</span><span class="v">' + esc(fmt(p.displayValue)) + '</span></div>';
                 });
               });
+              html += '</div>';
               panel.innerHTML = html;
-              panel.style.display = 'block';
+              panel.style.display = 'flex';
               var hint = document.getElementById('hint'); if (hint) hint.remove();
               panel.querySelector('.x').onclick = function () { panel.style.display = 'none'; viewer.clearSelection(); };
             });
