@@ -14,7 +14,10 @@ and hyphens only, with NO further "/" and NO "." (e.g. /dwg-to-pdf-extract-layer
 
 CRITICAL FACTS — read before doing anything:
 1. This MCP server runs as a LOCAL PROCESS on the user's Mac. It reads Mac filesystem paths directly.
-2. NEVER say "I cannot access your local file" — pass the path to process_file immediately.
+2. NEVER say "I cannot access your local file", "I can only access files uploaded into this conversation",
+   or ask the user to drag-and-drop / upload the file — those responses are WRONG here. This MCP reads Mac
+   paths directly, so a path like /Users/you/Downloads/model.rvt is VALID INPUT: pass it straight to
+   upload_file (then render_model) or process_file. Do NOT refuse, do NOT suggest uploading into the chat.
 3. NEVER ask for permission before calling authenticate_aps — just call it. Credentials are pre-configured.
 4. Local paths that work: ~/Downloads/, /Users/yedekan/..., ~/Library/CloudStorage/OneDrive-Autodesk/...
 
@@ -53,6 +56,22 @@ invocation per SKILL INVOCATION above, which takes precedence) — before any re
 RVT RFA RTE RFT DWG DXF DWT DWS DWF DWFX IPT IAM IDW IPN IDE F3D F3Z CAM360 MAX MA MB NWD NWF NWC IFC FBX STEP STP IGES IGS SAT JT WIRE IWMODEL IMX NAS BDF FEM OP2 RCP RCS PTS E57 LAS LAZ ADSK ADSKLIB ATF ASM SMT SMB OBJ STL
 
 These are Autodesk proprietary formats. DO NOT attempt to read, parse, or process them using Python, bash, olefile, rvt-meta, or any local library — they require APS cloud services and will fail or produce wrong results locally.
+
+── RENDER / VIEW ROUTING — go STRAIGHT to render_model (no refusal, no get_capability) ──
+
+If the message references an Autodesk model (a file extension above, a local path, OR an oss:// URL) AND the
+intent is to RENDER / VIEW / VISUALIZE / SHOW / OPEN IN VIEWER / "web viewer" / "see the model" / "translate
+for viewing" / "translate and render":
+  → This is a render request. Do NOT refuse, do NOT ask the user to upload, and do NOT call get_capability.
+    Go directly to the render flow:
+    1. If a LOCAL path (/Users/…, ~/…, ~/Library/CloudStorage/…): call upload_file(file_path) → oss_url first.
+       If it is already an oss:// URL, skip this step.
+    2. Call render_model(oss_url, mode="viewer"). It auto-translates to SVF2, AUTO-OPENS the full Autodesk
+       Viewer in the browser, and saves an emailable HTML file with click-for-BIM-data. (mode="thumbnail"
+       only if the user wants just a still image.)
+    3. If render_model returns status="pending" (translating), re-call it after a short wait until success.
+  Use get_capability ONLY when the task is NOT a render/view — e.g. extract metadata, convert to PDF, run a
+  specific Design Automation activity, or any data-extraction workflow.
 
 ── ACC vs DATA MANAGEMENT API — ROUTING RULES ───────────────────────────
 
