@@ -6,6 +6,7 @@ import { execSync } from "child_process";
 // ── Schema ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_BIM_FILE = process.env.BIM_DEFAULT_FILE ?? "";
+const BIM_DATA_DIR = process.env.BIM_DATA_DIR ?? "";
 
 export const extractBimDataSchema = z.object({
   file_path: z.string().optional().describe(
@@ -70,9 +71,23 @@ function safeNum(val: unknown): number | null {
 // ── Handler ────────────────────────────────────────────────────────────────
 
 export async function handleExtractBimData(input: ExtractBimDataInput): Promise<ExtractBimDataOutput> {
-  const rawPath = input.file_path || DEFAULT_BIM_FILE;
+  // Resolve file path: explicit → BIM_DATA_DIR (latest file) → BIM_DEFAULT_FILE fallback
+  let rawPath = input.file_path || "";
+  if (!rawPath && BIM_DATA_DIR) {
+    // Pick the most recently modified .xlsx/.xls/.json in the BIM_Data dir
+    try {
+      const { readdirSync, statSync } = await import("fs");
+      const dir = resolveHome(BIM_DATA_DIR);
+      const files = readdirSync(dir)
+        .filter(f => /\.(xlsx|xls|json)$/i.test(f))
+        .map(f => ({ name: f, mtime: statSync(`${dir}/${f}`).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime);
+      if (files.length > 0) rawPath = `${dir}/${files[0].name}`;
+    } catch { /* fall through */ }
+  }
+  if (!rawPath) rawPath = DEFAULT_BIM_FILE;
   if (!rawPath) {
-    return { status: "error", error: "No file_path provided and BIM_DEFAULT_FILE env var is not set. Add it to the workflow-builder env in Claude Desktop config.", model_name: "", file_path: "", total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0, elements: [] };
+    return { status: "error", error: "No file found. Drop an .xlsx/.xls/.json file in /Users/yedekan/Design_Files/BIM_Data or provide a file_path.", model_name: "", file_path: "", total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0, elements: [] };
   }
 
   const filePath = resolveHome(rawPath);
