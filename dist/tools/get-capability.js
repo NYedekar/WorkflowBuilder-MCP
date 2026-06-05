@@ -46,8 +46,10 @@ export const getCapabilitySchema = z.object({
         .default(5)
         .describe("Max results to return (default 5, max 20)."),
 });
-// Keywords that indicate a render/view/visualize intent — should always go to render_model, not get_capability.
-const VIEWER_REDIRECT_RE = /\b(render|view|viewer|visuali[sz]e?|open.?in.?viewer|web.?viewer|svf2|translate.*(for|to).*(view|render)|see.?the.?model|open.?model|aps.?viewer|forge.?viewer)\b/i;
+// Detects render/view/visualize intent that should go to render_model, not get_capability.
+// IMPORTANT: must NOT match legitimate APS queries like "list model views", "list project files",
+// "get folder", "list hub projects", "navigate ACC" — only match unambiguous viewer-open intent.
+const VIEWER_REDIRECT_RE = /\b(viewer|visuali[sz]e?|open.{0,15}in.{0,10}viewer|web[\s-]?viewer|aps[\s-]?viewer|forge[\s-]?viewer|see\s+the\s+model|open\s+model\s+in|render\s+model|translate\s+(and\s+)?(view|render|open|show)|view\s+(the\s+)?(rvt|dwg|ifc|model)\b)\b/i;
 export async function handleGetCapability(input) {
     // If no filters at all, return a helpful message
     if (!input.query && !input.capability_id && !input.operation_id && !input.risk) {
