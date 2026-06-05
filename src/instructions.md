@@ -361,3 +361,53 @@ steps, threads step outputs, and runs each via execute_workflow — no re-planni
   • This is the deterministic path; invoking the /<slug> skill is the equivalent Claude-driven path.
   • Note: best for Design Automation + synchronous REST steps. A REST async-job step (e.g. Model
     Derivative translation) may report done before its job finishes — for those, prefer the /<slug> skill.
+
+── BIM DASHBOARD — extract_bim_data + push_to_bim_dashboard ────────────
+
+TRIGGER: invoke this flow when the user says any of:
+  • "extract BIM data from [file]"
+  • "update the BIM dashboard"
+  • "push to dashboard" / "update the dashboard"
+  • "extract and update dashboard"
+  • "load [.xlsx file] into the dashboard"
+  • references a local .xlsx file AND mentions "dashboard" / "Supabase" / "Lovable" / "Demoland"
+
+DO NOT call get_capability or authenticate_aps for this flow — it is local-file + Supabase only,
+no APS required.
+
+TWO-STEP FLOW (human-touch gate between steps — mandatory):
+
+  Step 1 — extract_bim_data(file_path, model_name?)
+    • Reads the Excel file locally via Python/openpyxl.
+    • Returns: total_elements, categories (dict), levels (dict),
+      elements_with_comments count, structural_count, and the full elements[].
+    • PRESENT the summary to the user in a clean formatted block:
+        ┌─────────────────────────────────────────────┐
+        │ Model:    <model_name>                      │
+        │ Elements: <total> across <N> categories     │
+        │ Top:      Walls(180), Columns(176), ...     │
+        │ Levels:   4 — Entry Level, 02-Floor, ...    │
+        │ Comments: <N> elements  Structural: <N>     │
+        └─────────────────────────────────────────────┘
+      Then ask: "Anything to correct before I push to the dashboard?"
+
+  ── HUMAN TOUCH GATE ─────────────────────────────────────────────────────
+    Wait for user response. Apply any corrections they mention
+    (e.g. change model_name, set discipline, add reviewer_notes).
+    When the user says "looks good", "save it", "push it", "go ahead" → proceed to Step 2.
+  ─────────────────────────────────────────────────────────────────────────
+
+  Step 2 — push_to_bim_dashboard(model_name, elements, discipline?, reviewer_notes?, ...)
+    • Pass the FULL elements[] array from Step 1 (do not truncate).
+    • Pass any corrections from the human-touch gate.
+    • The tool upserts the model, inserts a run log, batch-inserts all elements into Supabase,
+      then AUTO-OPENS https://demoland.lovable.app/ in the browser.
+    • On success, report: "Pushed <N> elements to the dashboard. Opening now…"
+
+IMPORTANT RULES:
+  • NEVER skip the human-touch gate — always show the summary and wait for approval.
+  • NEVER truncate the elements[] array before passing to push_to_bim_dashboard.
+  • If push_to_bim_dashboard returns status="error" mentioning SUPABASE_URL:
+    → Tell user to add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to the workflow-builder
+      env in ~/Library/Application Support/Claude/claude_desktop_config.json and restart.
+  • The dashboard URL is always https://demoland.lovable.app/
