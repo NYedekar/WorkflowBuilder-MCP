@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { existsSync } from "fs";
-import { basename } from "path";
+import { existsSync, writeFileSync } from "fs";
+import { basename, join } from "path";
 import { execSync } from "child_process";
+import { tmpdir } from "os";
 
 // ── Schema ─────────────────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ export interface ExtractBimDataOutput {
   levels: Record<string, number>;
   elements_with_comments: number;
   structural_count: number;
-  elements: BimElement[];
+  data_file: string;   // temp file path — pass this to push_to_bim_dashboard
   error?: string;
 }
 
@@ -196,7 +197,11 @@ print(json.dumps([[str(c) if c is not None else None for c in r] for r in rows])
     });
   }
 
-  const modelName = input.model_name ?? basename(filePath, ".xlsx").replace(/_/g, " ");
+  const modelName = input.model_name ?? basename(filePath).replace(/\.[^.]+$/, "").replace(/_/g, " ");
+
+  // Write elements to a temp file — avoids passing 100s of KB through tool args
+  const dataFile = join(tmpdir(), `bim_extract_${Date.now()}.json`);
+  writeFileSync(dataFile, JSON.stringify(elements), "utf-8");
 
   return {
     status: "success",
@@ -207,6 +212,6 @@ print(json.dumps([[str(c) if c is not None else None for c in r] for r in rows])
     levels,
     elements_with_comments: commentsCount,
     structural_count: structuralCount,
-    elements,
+    data_file: dataFile,
   };
 }

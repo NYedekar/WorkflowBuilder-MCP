@@ -1,28 +1,16 @@
 import { z } from "zod";
 import { exec } from "child_process";
+import { readFileSync } from "fs";
 import { promisify } from "util";
 const execAsync = promisify(exec);
 // ── Schema ─────────────────────────────────────────────────────────────────
 export const pushToBimDashboardSchema = z.object({
     model_name: z.string().describe("Display name for the model in the dashboard. E.g. 'Demoland Building 1'"),
-    file_type: z.enum(["RVT", "DWG", "IFC", "NWD", "XLSX", "OTHER"]).default("RVT").describe("File type of the source model."),
+    data_file: z.string().describe("Path to the temp JSON file returned by extract_bim_data. E.g. /tmp/bim_extract_1234567890.json"),
+    file_type: z.enum(["RVT", "DWG", "IFC", "NWD", "XLSX", "OTHER"]).default("XLSX").describe("File type of the source model."),
     discipline: z.enum(["Architecture", "Structure", "MEP", "Civil", "Multi", "Unknown"]).default("Unknown"),
-    elements: z.array(z.object({
-        element_id: z.number().nullable().optional(),
-        category: z.string().nullable().optional(),
-        family: z.string().nullable().optional(),
-        family_type: z.string().nullable().optional(),
-        level: z.string().nullable().optional(),
-        phase_created: z.string().nullable().optional(),
-        comments: z.string().nullable().optional(),
-        mark: z.string().nullable().optional(),
-        area: z.number().nullable().optional(),
-        volume: z.number().nullable().optional(),
-        length: z.number().nullable().optional(),
-        structural: z.boolean().nullable().optional(),
-    })).describe("Element array from extract_bim_data — pass the full elements array after human review."),
     reviewer_notes: z.string().optional().describe("Notes added during the human-touch review gate."),
-    replace_existing: z.boolean().default(true).describe("If true (default), deletes existing elements for this model before inserting new ones — keeps the dashboard current."),
+    replace_existing: z.boolean().default(true).describe("If true (default), deletes existing elements for this model before inserting new ones."),
     level_count: z.number().int().optional(),
     sheet_count: z.number().int().optional(),
     view_count: z.number().int().optional(),
@@ -64,15 +52,23 @@ export async function handlePushToBimDashboard(input) {
             error: "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in the MCP server environment. Add them to ~/.claude/claude_desktop_config.json under mcpServers.workflow-builder.env",
         };
     }
+    // Read elements from temp file (avoids giant tool args)
+    let elements;
+    try {
+        elements = JSON.parse(readFileSync(input.data_file, "utf-8"));
+    }
+    catch (e) {
+        return { status: "error", error: `Could not read data_file: ${input.data_file}. Run extract_bim_data first. ${String(e)}` };
+    }
     const now = new Date().toISOString();
     // ── 1. Upsert model ─────────────────────────────────────────────────────
     const modelPayload = {
         model_name: input.model_name,
         file_type: input.file_type,
         discipline: input.discipline,
-        total_element_count: input.elements.length,
-        level_count: input.level_count ?? Object.keys(input.elements.reduce((acc, e) => { if (e.level)
-            acc[e.level] = 1; return acc; }, {})).length,
+        total_element_count: elements.length,
+        level_count: input.level_count ?? Object.keys(elements.reduce((acc, e) => { if (e.level)
+            acc[String(e.level)] = 1; return acc; }, {})).length,
         sheet_count: input.sheet_count ?? null,
         view_count: input.view_count ?? null,
         warning_count: input.warning_count ?? null,
@@ -120,8 +116,8 @@ export async function handlePushToBimDashboard(input) {
     }
     // ── 4. Insert elements in batches ────────────────────────────────────────
     let inserted = 0;
-    for (let i = 0; i < input.elements.length; i += BATCH_SIZE) {
-        const batch = input.elements.slice(i, i + BATCH_SIZE).map((e) => ({
+    for (let i = 0; i < elements.length; i += BATCH_SIZE) {
+        const batch = elements.slice(i, i + BATCH_SIZE).map((e) => ({
             model_id: modelId,
             run_id: runId,
             element_id: e.element_id ?? null,
