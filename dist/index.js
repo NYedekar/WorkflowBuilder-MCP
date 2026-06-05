@@ -40,6 +40,8 @@ import { SAVE_SKILL_UI_URI, MCP_APP_MIME, SAVE_SKILL_UI_HTML } from "./lib/save-
 import { VIEWER_POC_URI, VIEWER_POC_HTML } from "./lib/viewer-poc-ui.js";
 import { renderViewerPocSchema, handleRenderViewerPoc, } from "./tools/render-viewer-poc.js";
 import { renderMassingSchema, handleRenderMassing, } from "./tools/render-massing.js";
+import { extractBimDataSchema, handleExtractBimData, } from "./tools/extract-bim-data.js";
+import { pushToBimDashboardSchema, handlePushToBimDashboard, } from "./tools/push-to-bim-dashboard.js";
 // ─── Server setup ─────────────────────────────────────────────────────────
 const server = new Server({
     name: "mcp-workflow-builder",
@@ -314,6 +316,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 inputSchema: zodToJsonSchema(applyViewerUpdatesSchema),
             },
             {
+                name: "extract_bim_data",
+                description: "Read a local Excel (.xlsx) file containing Revit element parameters and extract structured BIM data. " +
+                    "Returns a summary (element count, categories, levels) and the full elements array for human review. " +
+                    "Call this FIRST — present the summary to the user for review/approval before calling push_to_bim_dashboard. " +
+                    "Supports any Excel export from Revit with columns: Category, ElementId, FamilyType, Family, Level, Phase Created, Comments, Mark, Area, Volume, Length, Structural.",
+                inputSchema: zodToJsonSchema(extractBimDataSchema),
+            },
+            {
+                name: "push_to_bim_dashboard",
+                description: "Push approved BIM element data to Supabase and update the Lovable live dashboard in real-time. " +
+                    "Call ONLY after the user has reviewed and approved the extract_bim_data summary (human-touch gate). " +
+                    "Upserts the model record, inserts a run log, and batch-inserts all elements. " +
+                    "The Lovable dashboard updates via Supabase Realtime within seconds of completion. " +
+                    "Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the MCP server environment.",
+                inputSchema: zodToJsonSchema(pushToBimDashboardSchema),
+            },
+            {
                 name: "render_viewer_poc",
                 description: "PROOF-OF-CONCEPT: render a rotating 3D WebGL cube INLINE in the conversation via MCP Apps UI. " +
                     "Use to verify the relay-free inline-rendering channel works in this host. Call it when the user asks to " +
@@ -371,6 +390,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 break;
             case "render_massing":
                 result = await handleRenderMassing(renderMassingSchema.parse(args));
+                break;
+            case "extract_bim_data":
+                result = await handleExtractBimData(extractBimDataSchema.parse(args));
+                break;
+            case "push_to_bim_dashboard":
+                result = await handlePushToBimDashboard(pushToBimDashboardSchema.parse(args));
                 break;
             case "render_model": {
                 // Return the CallToolResult directly so the rendered preview is an MCP image content
