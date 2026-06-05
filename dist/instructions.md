@@ -364,16 +364,33 @@ steps, threads step outputs, and runs each via execute_workflow — no re-planni
 
 ── BIM DASHBOARD — extract_bim_data + push_to_bim_dashboard ────────────
 
-TRIGGER: invoke this flow when the user says any of:
+These are TWO SEPARATE tools. Read intent carefully before deciding which to call.
+
+── CASE 1: Extract / download data only (NO dashboard update) ───────────
+
+TRIGGER — user wants to read, download, or inspect BIM data WITHOUT updating the dashboard:
   • "extract BIM data from [file]"
+  • "download the data from [file]"
+  • "read the parameters from [file]"
+  • "show me what's in [file]"
+  • "get the element data" (no mention of dashboard/update/push)
+
+ACTION: call extract_bim_data(file_path) ONLY.
+  • Present the summary to the user.
+  • Do NOT call push_to_bim_dashboard.
+  • Do NOT ask "should I push to the dashboard?" unless the user signals interest.
+
+── CASE 2: Extract + update dashboard (full flow) ───────────────────────
+
+TRIGGER — user explicitly mentions dashboard, Supabase, Lovable, or update:
   • "update the BIM dashboard"
   • "push to dashboard" / "update the dashboard"
   • "extract and update dashboard"
-  • "load [.xlsx file] into the dashboard"
-  • references a local .xlsx file AND mentions "dashboard" / "Supabase" / "Lovable" / "Demoland"
+  • "load [file] into the dashboard"
+  • "send data to Lovable / Supabase / Demoland"
+  • references a .xlsx file AND uses words like "dashboard", "update", "push", "send", "live"
 
-DO NOT call get_capability or authenticate_aps for this flow — it is local-file + Supabase only,
-no APS required.
+DO NOT call get_capability or authenticate_aps — local-file + Supabase only, no APS required.
 
 TWO-STEP FLOW (human-touch gate between steps — mandatory):
 
@@ -405,7 +422,8 @@ TWO-STEP FLOW (human-touch gate between steps — mandatory):
     • On success, report: "Pushed <N> elements to the dashboard. Opening now…"
 
 IMPORTANT RULES:
-  • NEVER skip the human-touch gate — always show the summary and wait for approval.
+  • NEVER call push_to_bim_dashboard unless the user explicitly asked to update the dashboard.
+  • NEVER skip the human-touch gate in Case 2 — always show the summary and wait for approval.
   • NEVER truncate the elements[] array before passing to push_to_bim_dashboard.
   • If push_to_bim_dashboard returns status="error" mentioning SUPABASE_URL:
     → Tell user to add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to the workflow-builder
