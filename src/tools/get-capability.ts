@@ -139,6 +139,30 @@ export async function handleGetCapability(
     };
   });
 
-  return { count: summaries.length, capabilities: summaries };
+  // Signpost: the ACC file-publish chain has a dedicated composite TOOL. If a
+  // search surfaces the low-level DM/OSS primitives — or reads like an
+  // "upload a file into a project folder" intent — steer to publish_to_acc_folder
+  // so the model doesn't hand-drive create_storage→signeds3upload→create_item
+  // (a known dead-end that 403s on the WIP bucket and looks like a missing capability).
+  const PUBLISH_PRIMITIVES = new Set([
+    "aps:dm.items_versions",
+    "aps:dm.storage_commands",
+    "aps:dm.oss_objects",
+  ]);
+  const surfacedPrimitive = summaries.some((s) => PUBLISH_PRIMITIVES.has(s.id));
+  const q = (input.query ?? "").toLowerCase();
+  const looksLikePublish =
+    /\b(upload|publish|save|put|add|push|store|land)\b/.test(q) &&
+    /\b(acc|bim ?360|docs|folder|project)\b/.test(q);
+  const hint =
+    surfacedPrimitive || looksLikePublish
+      ? "To PUBLISH a file INTO an ACC/BIM360 project folder, use the publish_to_acc_folder TOOL — " +
+        "one call runs create_storage → signed S3 upload → finalize → create_item, with find-or-create " +
+        "folder resolution (folder_path + hub_id). Do NOT hand-drive these primitives via execute_workflow, " +
+        "and do NOT use upload_file (it targets the app's own bucket, not project storage). " +
+        "Call authenticate_aps_3lo first, and pass region (e.g. 'CAN') for non-US hubs."
+      : undefined;
+
+  return { count: summaries.length, capabilities: summaries, ...(hint ? { hint } : {}) };
 }
 

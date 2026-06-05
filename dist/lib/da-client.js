@@ -235,14 +235,15 @@ export async function getSignedDownloadUrl(token, ossUrl // oss://bucketKey/obje
     return signedUrl;
 }
 // ── OSS Direct-to-S3 download (non-deprecated path) ───────────────────────
-export async function getSignedS3DownloadUrl(token, ossUrl // oss://bucketKey/objectKey
-) {
+export async function getSignedS3DownloadUrl(token, ossUrl, // oss://bucketKey/objectKey
+region) {
     const withoutScheme = ossUrl.replace(/^oss:\/\//, "");
     const slash = withoutScheme.indexOf("/");
     const bucketKey = withoutScheme.slice(0, slash);
     const objectKey = withoutScheme.slice(slash + 1);
+    const regionHeader = region ? { "x-ads-region": region.toUpperCase() } : {};
     const res = await fetchWithTimeout(`${OSS_BASE}/buckets/${encodeURIComponent(bucketKey)}/objects/${encodeURIComponent(objectKey)}/signeds3download`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, ...regionHeader },
     }, 15_000);
     if (!res.ok) {
         const body = await res.text();
@@ -255,11 +256,12 @@ export async function getSignedS3DownloadUrl(token, ossUrl // oss://bucketKey/ob
         throw new DAError("S3 download URL response missing url field");
     return url;
 }
-export async function getSignedS3UploadUrl(token, bucketKey, objectKey, minutesExpiration = 60, parts = 1) {
+export async function getSignedS3UploadUrl(token, bucketKey, objectKey, minutesExpiration = 60, parts = 1, region) {
     const url = `${OSS_BASE}/buckets/${bucketKey}/objects/${encodeURIComponent(objectKey)}/signeds3upload` +
         `?minutesExpiration=${minutesExpiration}&parts=${parts}`;
+    const regionHeader = region ? { "x-ads-region": region.toUpperCase() } : {};
     const res = await fetchWithTimeout(url, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, ...regionHeader },
     }, 15_000);
     if (!res.ok) {
         const body = await res.text();
@@ -278,12 +280,14 @@ export async function uploadToS3(signedUrl, fileBuffer, contentType) {
         throw new DAError(`S3 upload failed (HTTP ${res.status}): ${body}`, res.status);
     }
 }
-export async function finalizeS3Upload(token, bucketKey, objectKey, uploadKey, signal) {
+export async function finalizeS3Upload(token, bucketKey, objectKey, uploadKey, signal, region) {
+    const regionHeader = region ? { "x-ads-region": region.toUpperCase() } : {};
     const res = await fetchWithTimeout(`${OSS_BASE}/buckets/${bucketKey}/objects/${encodeURIComponent(objectKey)}/signeds3upload`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            ...regionHeader,
         },
         body: JSON.stringify({ uploadKey }),
     }, 20_000, 2, signal);

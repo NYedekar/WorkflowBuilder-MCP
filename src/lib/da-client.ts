@@ -347,17 +347,19 @@ export async function getSignedDownloadUrl(
 
 export async function getSignedS3DownloadUrl(
   token: string,
-  ossUrl: string // oss://bucketKey/objectKey
+  ossUrl: string, // oss://bucketKey/objectKey
+  region?: string
 ): Promise<string> {
   const withoutScheme = ossUrl.replace(/^oss:\/\//, "");
   const slash = withoutScheme.indexOf("/");
   const bucketKey = withoutScheme.slice(0, slash);
   const objectKey = withoutScheme.slice(slash + 1);
 
+  const regionHeader: Record<string, string> = region ? { "x-ads-region": region.toUpperCase() } : {};
   const res = await fetchWithTimeout(
     `${OSS_BASE}/buckets/${encodeURIComponent(bucketKey)}/objects/${encodeURIComponent(objectKey)}/signeds3download`,
     {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, ...regionHeader },
     },
     15_000
   );
@@ -386,14 +388,16 @@ export async function getSignedS3UploadUrl(
   bucketKey: string,
   objectKey: string,
   minutesExpiration = 60,
-  parts = 1
+  parts = 1,
+  region?: string
 ): Promise<SignedUploadResponse> {
   const url =
     `${OSS_BASE}/buckets/${bucketKey}/objects/${encodeURIComponent(objectKey)}/signeds3upload` +
     `?minutesExpiration=${minutesExpiration}&parts=${parts}`;
 
+  const regionHeader: Record<string, string> = region ? { "x-ads-region": region.toUpperCase() } : {};
   const res = await fetchWithTimeout(url, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, ...regionHeader },
   }, 15_000);
 
   if (!res.ok) {
@@ -422,8 +426,10 @@ export async function finalizeS3Upload(
   bucketKey: string,
   objectKey: string,
   uploadKey: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  region?: string
 ): Promise<void> {
+  const regionHeader: Record<string, string> = region ? { "x-ads-region": region.toUpperCase() } : {};
   const res = await fetchWithTimeout(
     `${OSS_BASE}/buckets/${bucketKey}/objects/${encodeURIComponent(objectKey)}/signeds3upload`,
     {
@@ -431,6 +437,7 @@ export async function finalizeS3Upload(
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        ...regionHeader,
       },
       body: JSON.stringify({ uploadKey }),
     },

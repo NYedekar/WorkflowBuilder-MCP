@@ -84,11 +84,63 @@ These two API families overlap on "projects" — always pick based on intent:
 | Get project members / users | acc:* | aps:dm.* |
 | Find a hub ID or project ID for file access | aps:dm.hubs_projects | acc:hub-admin.projects |
 | Browse folders / files inside a project | aps:dm.folders | acc:hub-admin.* |
-| Upload / download / version a file | aps:dm.items_versions | acc:hub-admin.* |
+| **Publish / upload a file INTO an ACC/BIM360 folder** | **publish_to_acc_folder (TOOL)** | hand-driving create_storage→signeds3upload→finalize→create_item |
+| Download / version-query an existing file | aps:dm.items_versions | acc:hub-admin.* |
 | BIM360 legacy account ops | bim360:account-admin.* | acc:hub-admin.* |
 
 Rule of thumb: **acc:* = account admin (projects, members, config). aps:dm.* = file tree navigation within a project.**
 If the user says "my projects", "my account", "list projects", "create project" → acc:hub-admin.projects FIRST.
+
+── PUBLISHING A FILE INTO AN ACC/BIM360 FOLDER → USE THE publish_to_acc_folder TOOL ──
+
+TRIGGER: any request to "upload to ACC", "put this in my ACC project", "save the IFC/PDF/converted file
+to <folder> in project X", "publish to Docs", or otherwise land a file inside an ACC/BIM360 project folder.
+
+DO THIS — call the publish_to_acc_folder TOOL. It runs the whole supported chain in ONE call:
+  create_storage → get_signed_s3_upload → PUT bytes → finalize_signed_s3_upload → create_item.
+DO NOT hand-drive those primitives with execute_workflow, and DO NOT use upload_file (it targets the
+app's own OSS bucket, NOT the project's WIP storage — it cannot land a file in a project folder).
+
+Rules the tool encodes (so you don't rediscover them the hard way):
+  • Requires a 3LO (user-identity) token → call authenticate_aps_3lo FIRST. A 2LO token cannot see or
+    write project folders, and a bare 2LO attempt produces a misleading empty/403 "app not provisioned"
+    dead-end. If publish returns "No 3LO token", run authenticate_aps_3lo then retry.
+  • Non-US hub (Canadian, EMEA, etc.) → pass region (e.g. 'CAN'), or the regional WIP-bucket upload 403s.
+    Use the SAME region the hub lives in. The tool does NOT apply this region to the source object.
+  • Source the bytes with whichever you have:
+      - source_oss_url  → an object already in OSS, e.g. the output of a RevitIFCExport / Model Derivative
+                          job (the common "convert then publish" case). PREFERRED — no re-download.
+      - file_path       → a local Mac file.
+      - file_url        → an HTTPS/sharing URL.
+  • Target the PROJECT by EITHER:
+      - project_name + region (and/or hub_name) → e.g. project_name:'Demoland Building 1', region:'CAN'.
+        The tool lists hubs/projects and matches by name itself — you do NOT need to call list_hubs /
+        list_hub_projects first. Ambiguous names error with the candidates.
+      - project_id (+ hub_id) → when you already have the ids; with both, the tool makes ZERO lookup calls.
+  • Target the FOLDER by EITHER:
+      - folder_path → e.g. 'Project Files/Converted Models'. Existing folders are reused, missing ones
+        auto-created (create_missing, default true). A bare name resolves under 'Project Files'. The hub is
+        taken from project resolution, so folder_path needs no separate hub_id when you used project_name.
+        This REPLACES the list_top_folders → list_folder_contents → create_folder sequence — skip those.
+      - folder_id → when you already have the exact folder URN.
+  • If the file already exists in the folder, a NEW VERSION is added by default (if_exists:'new_version') —
+    so re-publishing an updated model just works. Pass if_exists:'error' to refuse instead.
+
+Convert-then-publish pattern (e.g. "convert this RVT to IFC and upload to <folder> in <project> on the Canadian hub"):
+  1. RevitIFCExport (export-to-ifc) on the RVT → poll get_workflow_status to success.
+     Take the IFC's oss_url straight from outputOssUrls (the ifcFile output).        ┐ start this and step 2 together
+  2. authenticate_aps_3lo                                                            ┘
+  3. publish_to_acc_folder({ project_name, region, folder_path, source_oss_url: <IFC output> })
+     — ONE call. It resolves the hub+project by name, finds-or-creates the folder, downloads the output
+       with the right token, uploads, and creates the item/version. No list_hubs / list_hub_projects needed.
+
+  ⛔ Do NOT call get_result on the IFC (or any job output) between the job and the publish. The oss_url from
+     get_workflow_status.outputOssUrls is all you need — pass it as source_oss_url. Calling get_result just to
+     "confirm" / "inspect" the output pulls megabytes into context, wastes tokens, and changes nothing. Fetch
+     content ONLY when the USER explicitly asks to see the file's contents.
+  • source_oss_url works in ONE call — the tool downloads the app-owned (2LO) output internally with the
+    right token and uploads it under your 3LO identity. You do NOT need to get_result the file to /tmp and
+    re-publish via file_path; that local round-trip is unnecessary.
 
 ── TOOL SELECTION ───────────────────────────────────────────────────────
 

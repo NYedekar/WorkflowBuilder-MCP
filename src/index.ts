@@ -52,6 +52,10 @@ import {
   handleUploadFile,
 } from "./tools/upload-file.js";
 import {
+  publishToAccFolderSchema,
+  handlePublishToAccFolder,
+} from "./tools/publish-to-acc-folder.js";
+import {
   getResultSchema,
   handleGetResult,
 } from "./tools/get-result.js";
@@ -263,6 +267,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: zodToJsonSchema(uploadFileSchema),
       },
       {
+        name: "publish_to_acc_folder",
+        description:
+          "Publish a file into an ACC/BIM360 project folder in ONE call — the supported alternative to " +
+          "hand-driving create_storage → signeds3upload → finalize → create_item with execute_workflow. " +
+          "Source the bytes from an existing OSS object (source_oss_url — e.g. a RevitIFCExport/Model Derivative " +
+          "output), a local Mac file (file_path), or an HTTPS URL (file_url). " +
+          "Target the project by id (project_id) OR by name (project_name + optional hub_name/region), and the " +
+          "folder by exact id (folder_id) OR by path (folder_path), e.g. 'Project Files/Converted Models' — " +
+          "existing projects/folders are matched, missing folders auto-created (create_missing, default true), " +
+          "so you can skip the list_hubs/list_projects/list_folders dance entirely. " +
+          "If the file already exists in the folder, a new version is added by default (if_exists). " +
+          "On success it returns a web_url deep-link to the folder and (open_in_browser, default true) opens it. " +
+          "Requires a 3LO token — call authenticate_aps_3lo first; a 2LO token cannot write project folders. " +
+          "Pass region (e.g. 'CAN') for non-US hubs or the regional WIP bucket upload will fail.",
+        inputSchema: zodToJsonSchema(publishToAccFolderSchema),
+      },
+      {
         name: "get_result",
         description:
           "Fetch output file content from APS OSS. CALL THIS AUTOMATICALLY — no user confirmation needed — " +
@@ -452,6 +473,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case "upload_file":
         result = await handleUploadFile(uploadFileSchema.parse(args));
+        break;
+
+      case "publish_to_acc_folder":
+        result = await handlePublishToAccFolder(publishToAccFolderSchema.parse(args));
         break;
       case "get_result":
         result = await handleGetResult(getResultSchema.parse(args));
