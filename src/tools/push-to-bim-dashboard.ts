@@ -1,5 +1,7 @@
 import { z } from "zod";
-import type { BimElement } from "./extract-bim-data.js";
+import { exec } from "child_process";
+import { promisify } from "util";
+const execAsync = promisify(exec);
 
 // ── Schema ─────────────────────────────────────────────────────────────────
 
@@ -47,7 +49,7 @@ export interface PushToBimDashboardOutput {
 const BATCH_SIZE = 100;
 const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-const DASHBOARD_URL = "https://etqblkgcvvyejdzvubin.supabase.co";
+const DASHBOARD_URL = "https://demoland.lovable.app/";
 
 async function supabaseRequest(
   path: string,
@@ -180,6 +182,13 @@ export async function handlePushToBimDashboard(input: PushToBimDashboardInput): 
       return { status: "error", error: `Batch insert failed at offset ${i}: ${batchRes.error}`, model_id: modelId, run_id: runId, elements_inserted: inserted };
     }
     inserted += batch.length;
+  }
+
+  // Open the Lovable dashboard in the browser so numbers update live
+  try {
+    await execAsync(`open ${JSON.stringify(DASHBOARD_URL)}`);
+  } catch {
+    // non-fatal — URL is still returned
   }
 
   return {

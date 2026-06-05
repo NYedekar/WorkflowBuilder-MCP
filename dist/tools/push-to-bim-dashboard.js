@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { exec } from "child_process";
+import { promisify } from "util";
+const execAsync = promisify(exec);
 // ── Schema ─────────────────────────────────────────────────────────────────
 export const pushToBimDashboardSchema = z.object({
     model_name: z.string().describe("Display name for the model in the dashboard. E.g. 'Demoland Building 1'"),
@@ -29,7 +32,7 @@ export const pushToBimDashboardSchema = z.object({
 const BATCH_SIZE = 100;
 const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-const DASHBOARD_URL = "https://etqblkgcvvyejdzvubin.supabase.co";
+const DASHBOARD_URL = "https://demoland.lovable.app/";
 async function supabaseRequest(path, method, body) {
     const url = `${SUPABASE_URL}/rest/v1/${path}`;
     const res = await fetch(url, {
@@ -139,6 +142,13 @@ export async function handlePushToBimDashboard(input) {
             return { status: "error", error: `Batch insert failed at offset ${i}: ${batchRes.error}`, model_id: modelId, run_id: runId, elements_inserted: inserted };
         }
         inserted += batch.length;
+    }
+    // Open the Lovable dashboard in the browser so numbers update live
+    try {
+        await execAsync(`open ${JSON.stringify(DASHBOARD_URL)}`);
+    }
+    catch {
+        // non-fatal — URL is still returned
     }
     return {
         status: "success",
