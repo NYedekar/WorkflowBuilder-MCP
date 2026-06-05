@@ -162,9 +162,15 @@ const ACC_WEB_HOSTS = {
 function accWebHost(region) {
     return (region && ACC_WEB_HOSTS[region.toUpperCase()]) || ACC_WEB_HOSTS.US;
 }
+// The folder goes in the `folderUrn` QUERY param, NOT a path segment: ACC WIP
+// folder ids can contain '/' and '+', and in a path the CDN %2F-decodes them into
+// bogus segments → S3 "NoSuchKey". As a query value they survive encoding.
+// Format confirmed against a live ACC browser URL:
+//   /docs/files/projects/{guid}?folderUrn={enc}&viewModel=detail&moduleId=folders
 function accFolderUrl(region, projectId, folderId) {
     const projectGuid = projectId.replace(/^b\./, "");
-    return `https://${accWebHost(region)}/docs/files/projects/${projectGuid}/folders/${encodeURIComponent(folderId)}`;
+    const folderUrn = encodeURIComponent(folderId);
+    return `https://${accWebHost(region)}/docs/files/projects/${projectGuid}?folderUrn=${folderUrn}&viewModel=detail&moduleId=folders`;
 }
 // Project files root — guaranteed-valid fallback link (the deep folder path is best-effort).
 function accProjectUrl(region, projectId) {
