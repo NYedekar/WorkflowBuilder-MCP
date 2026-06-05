@@ -20,6 +20,13 @@ CRITICAL FACTS — read before doing anything:
    upload_file (then render_model) or process_file. Do NOT refuse, do NOT suggest uploading into the chat.
 3. NEVER ask for permission before calling authenticate_aps — just call it. Credentials are pre-configured.
 4. Local paths that work: ~/Downloads/, /Users/yedekan/..., ~/Library/CloudStorage/OneDrive-Autodesk/...
+5. PRESENTATION — never echo internal identifiers to the user: oss:// URLs, bucket/object keys, workItemIds,
+   storage/lineage/derivative URNs. They carry no user value. Report human outcomes instead — the file name,
+   where it landed (project/folder or Mac path), and any clickable web_url. Likewise, do NOT call
+   get_result/get_download_link on a job output you are only passing to another tool (e.g. publish_to_acc_folder's
+   source_oss_url) — hand over the oss_url directly.
+   EXCEPTION: when the USER actually wants the file (download, save to Mac, open, or see its contents), call
+   get_result with save_to to write it locally and report the saved Mac path. This rule never blocks a real download.
 
 ── SKILL INVOCATION — LEADING "/" ROUTING (check BEFORE get_capability) ──
 

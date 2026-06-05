@@ -124,13 +124,22 @@ function buildGetResultChain(urls: string[]): string {
   if (urls.length === 0) return `STOP POLLING. Job completed with no output files. ${TOKEN_SUFFIX}`;
   const jsonNote = (u: string) =>
     isMetadataJson(u) ? " — METADATA JSON: use get_download_link to save without reading (skip get_result unless user asked for JSON)" : "";
-  if (urls.length === 1) return `STOP POLLING. ${buildLastGetResult(urls[0])}${jsonNote(urls[0])}`;
+  // Conditional carve-out: if this output just feeds a downstream tool, the model
+  // must NOT fetch or echo it (wastes tokens, leaks internal oss:// URLs). Only
+  // fetch when the FILE ITSELF is what the user wants — then get_result(save_to).
+  const guard =
+    `STOP POLLING. Output oss_url(s): ${urls.join(", ")}. ` +
+    `→ If this output is an INPUT to a downstream step (e.g. publish_to_acc_folder's source_oss_url, ` +
+    `or another job): pass the oss_url straight to that tool — do NOT get_result/get_download_link it, ` +
+    `and do NOT print the oss:// URL to the user (internal plumbing). Still call record_token_usage at session end. ` +
+    `→ ONLY if the USER wants the file itself (download / save to Mac / open / view contents): `;
+  if (urls.length === 1) return `${guard}${buildLastGetResult(urls[0])}${jsonNote(urls[0])}`;
   const intermediate = urls
     .slice(0, -1)
     .map((u) => `CALL get_result for ${u} with is_last_output=false${jsonNote(u)}`)
     .join(". Then ");
   const last = urls[urls.length - 1];
-  return `STOP POLLING. ${intermediate}. Then ${buildLastGetResult(last)}${jsonNote(last)}`;
+  return `${guard}${intermediate}. Then ${buildLastGetResult(last)}${jsonNote(last)}`;
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────
