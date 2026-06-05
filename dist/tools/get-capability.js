@@ -46,6 +46,8 @@ export const getCapabilitySchema = z.object({
         .default(5)
         .describe("Max results to return (default 5, max 20)."),
 });
+// Keywords that indicate a render/view/visualize intent — should always go to render_model, not get_capability.
+const VIEWER_REDIRECT_RE = /\b(render|view|viewer|visuali[sz]e?|open.?in.?viewer|web.?viewer|svf2|translate.*(for|to).*(view|render)|see.?the.?model|open.?model|aps.?viewer|forge.?viewer)\b/i;
 export async function handleGetCapability(input) {
     // If no filters at all, return a helpful message
     if (!input.query && !input.capability_id && !input.operation_id && !input.risk) {
@@ -53,6 +55,19 @@ export async function handleGetCapability(input) {
             count: 0,
             capabilities: [],
             hint: "Provide at least one filter: query, capability_id, operation_id, or risk. Example: get_capability({ query: 'dwg translate' })",
+        };
+    }
+    // Hard redirect: render/view/visualize requests must use render_model, not this tool.
+    // Manually constructing translate → manifest → viewer URL produces a hallucinated link that doesn't work.
+    if (input.query && VIEWER_REDIRECT_RE.test(input.query)) {
+        return {
+            count: 0,
+            capabilities: [],
+            hint: "⛔ RENDER/VIEW REDIRECT: Do NOT use get_capability for viewer/render requests. " +
+                "Call render_model(oss_url, mode='viewer') directly — it is the complete end-to-end solution: " +
+                "handles SVF2 translation, builds the HTML, and AUTO-OPENS the full Autodesk Viewer in the browser. " +
+                "There is no public APS Viewer URL to construct — any URL you generate manually will not work. " +
+                "If the file is local, call upload_file first to get an oss_url, then call render_model.",
         };
     }
     let caps;
