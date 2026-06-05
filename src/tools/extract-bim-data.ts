@@ -88,12 +88,12 @@ export async function handleExtractBimData(input: ExtractBimDataInput): Promise<
   }
   if (!rawPath) rawPath = DEFAULT_BIM_FILE;
   if (!rawPath) {
-    return { status: "error", error: "No file found. Drop an .xlsx/.xls/.json file in /Users/yedekan/Design_Files/BIM_Data or provide a file_path.", model_name: "", file_path: "", total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0, elements: [] };
+    return { status: "error", error: "No file found. Drop an .xlsx/.xls/.json file in /Users/yedekan/Design_Files/BIM_Data or provide a file_path.", model_name: "", file_path: "", total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0,  data_file: "" };
   }
 
   const filePath = resolveHome(rawPath);
   if (!existsSync(filePath)) {
-    return { status: "error", error: `File not found: ${filePath}`, model_name: "", file_path: filePath, total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0, elements: [] };
+    return { status: "error", error: `File not found: ${filePath}`, model_name: "", file_path: filePath, total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0,  data_file: "" };
   }
 
   const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
@@ -114,7 +114,7 @@ print(json.dumps([headers] + rows))
       const output = execSync(`python3 -c '${pyScript.replace(/'/g, "'\\''")}' '${filePath.replace(/'/g, "'\\''")}'`, { maxBuffer: 50 * 1024 * 1024 });
       rawRows = JSON.parse(output.toString());
     } catch (e) {
-      return { status: "error", error: `Failed to read JSON: ${String(e)}`, model_name: "", file_path: filePath, total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0, elements: [] };
+      return { status: "error", error: `Failed to read JSON: ${String(e)}`, model_name: "", file_path: filePath, total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0,  data_file: "" };
     }
   } else {
     // Excel: .xlsx or .xls — use openpyxl (.xlsx) or xlrd (.xls)
@@ -138,12 +138,12 @@ print(json.dumps([[str(c) if c is not None else None for c in r] for r in rows])
       const output = execSync(`python3 -c '${pyScript.replace(/'/g, "'\\''")}' '${filePath.replace(/'/g, "'\\''")}'`, { maxBuffer: 50 * 1024 * 1024 });
       rawRows = JSON.parse(output.toString());
     } catch (e) {
-      return { status: "error", error: `Failed to read Excel: ${String(e)}`, model_name: "", file_path: filePath, total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0, elements: [] };
+      return { status: "error", error: `Failed to read Excel: ${String(e)}`, model_name: "", file_path: filePath, total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0,  data_file: "" };
     }
   }
 
   if (rawRows.length < 2) {
-    return { status: "error", error: "Excel file appears empty or has no data rows.", model_name: "", file_path: filePath, total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0, elements: [] };
+    return { status: "error", error: "Excel file appears empty or has no data rows.", model_name: "", file_path: filePath, total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0,  data_file: "" };
   }
 
   const headers = rawRows[0];

@@ -417,9 +417,9 @@ TWO-STEP FLOW (human-touch gate between steps — mandatory):
     When the user says "looks good", "save it", "push it", "go ahead" → proceed to Step 2.
   ─────────────────────────────────────────────────────────────────────────
 
-  Step 2 — push_to_bim_dashboard(model_name, elements, discipline?, reviewer_notes?, ...)
-    • Pass the FULL elements[] array from Step 1 (do not truncate).
-    • Pass any corrections from the human-touch gate.
+  Step 2 — push_to_bim_dashboard(model_name, data_file, discipline?, reviewer_notes?, ...)
+    • Pass the data_file path returned by extract_bim_data — do NOT pass elements directly.
+    • Pass any corrections from the human-touch gate (model_name, reviewer_notes, discipline).
     • The tool upserts the model, inserts a run log, batch-inserts all elements into Supabase,
       then AUTO-OPENS https://demoland.lovable.app/ in the browser.
     • On success, report: "Pushed <N> elements to the dashboard. Opening now…"
@@ -427,7 +427,7 @@ TWO-STEP FLOW (human-touch gate between steps — mandatory):
 IMPORTANT RULES:
   • NEVER call push_to_bim_dashboard unless the user explicitly asked to update the dashboard.
   • NEVER skip the human-touch gate in Case 2 — always show the summary and wait for approval.
-  • NEVER truncate the elements[] array before passing to push_to_bim_dashboard.
+  • ALWAYS pass data_file (not elements) to push_to_bim_dashboard — the file was written by extract_bim_data.
   • If push_to_bim_dashboard returns status="error" mentioning SUPABASE_URL:
     → Tell user to add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to the workflow-builder
       env in ~/Library/Application Support/Claude/claude_desktop_config.json and restart.
