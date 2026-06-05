@@ -78,6 +78,20 @@ export const executeWorkflowSchema = z.object({
       "Explicit OAuth bearer token. Only needed if auto-auth fails or you have a pre-minted token. " +
         "For 3LO operations, call authenticate_aps_3lo instead — it stores the token automatically."
     ),
+  region: z
+    .string()
+    .optional()
+    .describe(
+      "Data-residency region for the hub/project, sent as the x-ads-region header on REST calls. " +
+        "REQUIRED for hubs that live outside the US — without it the API routes to the US shard and " +
+        "returns 403 BIM360DM_ERROR even with valid auth. Values: 'CAN' (Canada), 'EMEA', 'AUS', " +
+        "'GBR', 'DEU', 'IND', 'JPN'. Omit for US (the implicit default). " +
+        "Harmless on operations that ignore it. Ignored for Engine-API capabilities. " +
+        "NOTE: this sets the x-ads-region HEADER (hubs/projects/folders navigation, bucket create) " +
+        "and the Model Derivative body field (output.destination.region). Two ops use region " +
+        "DIFFERENTLY: Get Buckets takes region as a QUERY param — pass it inside args ({region:'...'}) " +
+        "for that one, not here."
+    ),
 
   // ── Engine-API (Design Automation) specific ─────────────────────────────
   input_file_url: z
@@ -291,7 +305,7 @@ const OSS_UPLOAD_SCOPES = [
   "bucket:create", "bucket:read", "bucket:update",
 ];
 
-async function storeResponseInOss(responseJson: string, opSlug: string): Promise<string | null> {
+async function storeResponseInOss(responseJson: string, opSlug: string, region?: string): Promise<string | null> {
   let cred: { client_id: string; access_token: string };
   try {
     cred = await resolveCredential(OSS_UPLOAD_SCOPES);
@@ -303,7 +317,7 @@ async function storeResponseInOss(responseJson: string, opSlug: string): Promise
   const bucketKey = rawKey.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "").slice(0, 128).padEnd(3, "0");
   const objectKey = `rest-${opSlug}-${Date.now()}.json`;
 
-  try { await ensureBucket(cred.access_token, bucketKey, "transient"); } catch { return null; }
+  try { await ensureBucket(cred.access_token, bucketKey, "transient", region); } catch { return null; }
 
   let signedUpload: { uploadKey: string; urls: string[] };
   try {
@@ -467,6 +481,11 @@ async function executeRest(
     Accept: "application/json",
   };
 
+  // Data-residency routing: non-US hubs (CAN, EMEA, AUS, …) live on a separate
+  // backend shard. Without x-ads-region the gateway defaults to the US shard and
+  // returns 403 BIM360DM_ERROR. Harmless on ops that ignore the header.
+  if (input.region) headers["x-ads-region"] = input.region.toUpperCase();
+
   // Auto-inject base64url URN into body.input.urn for REST ops (e.g. Model Derivative).
   // input_file_url is an Engine-API param; REST ops like MD need body.input.urn instead.
   let effectiveBody: Record<string, unknown> = resolvedBody ? { ...resolvedBody } : {};
@@ -487,6 +506,27 @@ async function executeRest(
         `body.input.urn was provided manually ('${String(existingInput.urn).slice(0, 40)}...'); ` +
         `auto-computed URN from input_file_url was skipped. ` +
         `If the translation worker fails to download, verify the manual URN is correct base64url.`;
+    }
+  }
+
+  // Model Derivative carries the data-residency region in the request body
+  // (output.destination.region), NOT the x-ads-region header. Inject it for
+  // translation-shaped bodies (those with an `output` block or an injected
+  // input.urn) so a CAN model translates/stores in CAN. Never clobber an
+  // explicit caller value. Other POST bodies (create_bucket, hub admin) are
+  // left untouched — they rely on the x-ads-region header set above.
+  if (input.region) {
+    const hasUrn = !!(effectiveBody.input as Record<string, unknown> | undefined)?.urn;
+    const hasOutput = "output" in effectiveBody;
+    if (hasUrn || hasOutput) {
+      const output = (effectiveBody.output ?? {}) as Record<string, unknown>;
+      const destination = (output.destination ?? {}) as Record<string, unknown>;
+      if (!destination.region) {
+        effectiveBody = {
+          ...effectiveBody,
+          output: { ...output, destination: { ...destination, region: input.region.toUpperCase() } },
+        };
+      }
     }
   }
 
@@ -567,7 +607,7 @@ async function executeRest(
     const sizeKb = (responseSize / 1024).toFixed(0);
 
     const ossTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 25_000));
-    responseOssUrl = await Promise.race([storeResponseInOss(responseJson, opSlug), ossTimeout]) ?? undefined;
+    responseOssUrl = await Promise.race([storeResponseInOss(responseJson, opSlug, input.region), ossTimeout]) ?? undefined;
 
     if (responseOssUrl) {
       effectiveResponseBody =
@@ -673,7 +713,7 @@ async function executeEngineApi(
     .padEnd(3, "0");
 
   try {
-    await ensureBucket(cred.access_token, safeBucketKey, input.output_bucket_policy);
+    await ensureBucket(cred.access_token, safeBucketKey, input.output_bucket_policy, input.region);
   } catch (err) {
     return { status: "error", error: `Could not ensure output bucket: ${String(err)}` };
   }

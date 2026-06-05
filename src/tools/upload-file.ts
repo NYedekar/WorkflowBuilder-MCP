@@ -89,6 +89,15 @@ export const uploadFileSchema = z.object({
     .optional()
     .default(60)
     .describe("Expiry in minutes for the returned signed download URL. Default: 60."),
+  region: z
+    .string()
+    .optional()
+    .describe(
+      "Data-residency region for the OSS bucket, sent as x-ads-region on bucket creation. " +
+        "Use the SAME region you pass to render_model / Model Derivative — a US bucket with a CAN " +
+        "translation (or vice-versa) will mismatch and the derivative source won't be found. " +
+        "Values: 'CAN', 'EMEA', 'AUS', 'GBR', 'DEU', 'IND', 'JPN'. Omit for US (the default)."
+    ),
 });
 
 export type UploadFileInput = z.infer<typeof uploadFileSchema>;
@@ -231,7 +240,7 @@ export async function handleUploadFile(input: UploadFileInput): Promise<UploadFi
   fileSizeBytes = stat.size;
 
   try {
-    await ensureBucketWithPolicy(cred.access_token, bucketKey, input.bucket_policy);
+    await ensureBucketWithPolicy(cred.access_token, bucketKey, input.bucket_policy, input.region);
   } catch (err) {
     return {
       status: "error",
@@ -314,12 +323,18 @@ function sanitizeBucketKey(raw: string): string {
 async function ensureBucketWithPolicy(
   token: string,
   bucketKey: string,
-  policy: "transient" | "temporary" | "persistent"
+  policy: "transient" | "temporary" | "persistent",
+  region?: string
 ): Promise<void> {
   const OSS_BASE = "https://developer.api.autodesk.com/oss/v2";
+  // Region header routes both the existence check and the create to the right
+  // data shard — a CAN bucket 404s on the US shard, so the check must match too.
+  const regionHeader: Record<string, string> = region
+    ? { "x-ads-region": region.toUpperCase() }
+    : {};
 
   const check = await fetch(`${OSS_BASE}/buckets/${bucketKey}/details`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, ...regionHeader },
   });
   if (check.ok) return;
   if (check.status !== 404) {
@@ -329,7 +344,7 @@ async function ensureBucketWithPolicy(
 
   const create = await fetch(`${OSS_BASE}/buckets`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...regionHeader },
     body: JSON.stringify({ bucketKey, policyKey: policy }),
   });
 
@@ -476,7 +491,7 @@ async function handleUrlUpload(input: UploadFileInput): Promise<UploadFileResult
   }
 
   try {
-    await ensureBucketWithPolicy(cred.access_token, bucketKey, input.bucket_policy ?? "transient");
+    await ensureBucketWithPolicy(cred.access_token, bucketKey, input.bucket_policy ?? "transient", input.region);
   } catch (err) {
     return { status: "error", error: `Could not ensure bucket '${bucketKey}': ${String(err)}` };
   }
