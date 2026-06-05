@@ -613,19 +613,19 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
     return { status: "error", error: `Failed to check model status: ${String(err)}` };
   }
 
-  if (!manifest) {
-    // No translation exists — start one
+  if (!manifest || input.force_retranslate) {
+    // No translation, or user explicitly requested a retranslation (e.g. stuck at 99%).
     try {
       await startSvf2Translation(writeToken, urn, input.region!, input.force_retranslate!, input.root_filename);
     } catch (err) {
       return { status: "error", error: `Failed to start SVF2 translation: ${String(err)}` };
     }
+    const restartNote = input.force_retranslate ? "Stuck translation cleared and restarted. " : "";
     return {
       status: "pending",
       urn,
-      // M4: guidance on retry ceiling so users know when to stop
       message:
-        "SVF2 translation started. Call render_model again in 30–60 seconds to check progress. " +
+        `${restartNote}SVF2 translation started. Call render_model again in 30–60 seconds to check progress. ` +
         "Large models (>50 MB) can take 10–30 minutes. " +
         "If still pending after 30 minutes, the job has likely timed out — re-upload and try again.",
     };
@@ -644,11 +644,24 @@ export async function handleRenderModel(input: RenderModelInput): Promise<Render
   }
 
   if (manifest.status !== "success") {
+    // APS commonly stalls at "99% complete" and never advances — detect and short-circuit.
+    const progressStr = manifest.progress ?? "?";
+    const isStuck99 = /\b99\b/.test(progressStr);
+    if (isStuck99) {
+      return {
+        status: "pending",
+        urn,
+        message:
+          `Translation is stuck at ${progressStr} — this is a known APS stall. ` +
+          "Call render_model again with force_retranslate: true to delete the stuck job and restart from scratch. " +
+          "Example: render_model(oss_url=..., force_retranslate=true)",
+      };
+    }
     return {
       status: "pending",
       urn,
       message:
-        `Translation ${manifest.status} (${manifest.progress ?? "?"}%). ` +
+        `Translation ${manifest.status} (${progressStr}). ` +
         "Call render_model again to check. " +
         "If still pending after 30 minutes, the job may have timed out — re-upload and try again.", // M4
     };
