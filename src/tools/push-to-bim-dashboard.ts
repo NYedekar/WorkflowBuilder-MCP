@@ -180,11 +180,15 @@ export async function handlePushToBimDashboard(input: PushToBimDashboardInput): 
     inserted += batch.length;
   }
 
-  // Open the Lovable dashboard in the browser so numbers update live
+  // Open the Lovable dashboard — try multiple methods for reliability
   try {
-    await execAsync(`open ${JSON.stringify(DASHBOARD_URL)}`);
+    await execAsync(`/usr/bin/open ${JSON.stringify(DASHBOARD_URL)}`);
   } catch {
-    // non-fatal — URL is still returned
+    try {
+      await execAsync(`osascript -e 'open location "${DASHBOARD_URL}"'`);
+    } catch {
+      // non-fatal — URL is still returned in response
+    }
   }
 
   return {
