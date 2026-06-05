@@ -394,7 +394,10 @@ DO NOT call get_capability or authenticate_aps — local-file + Supabase only, n
 
 TWO-STEP FLOW (human-touch gate between steps — mandatory):
 
-  Step 1 — extract_bim_data(file_path, model_name?)
+  Step 1 — extract_bim_data(file_path?, model_name?)
+    • file_path is OPTIONAL — if the user does not provide one, omit it and the tool
+      automatically uses the BIM_DEFAULT_FILE env var (pre-configured in Claude Desktop).
+    • Supported formats: .xlsx, .xls, .json
     • Reads the Excel file locally via Python/openpyxl.
     • Returns: total_elements, categories (dict), levels (dict),
       elements_with_comments count, structural_count, and the full elements[].

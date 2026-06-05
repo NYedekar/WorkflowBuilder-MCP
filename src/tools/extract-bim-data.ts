@@ -5,9 +5,12 @@ import { execSync } from "child_process";
 
 // ── Schema ─────────────────────────────────────────────────────────────────
 
+const DEFAULT_BIM_FILE = process.env.BIM_DEFAULT_FILE ?? "";
+
 export const extractBimDataSchema = z.object({
-  file_path: z.string().describe(
-    "Full local Mac path to an Excel (.xlsx) file containing Revit element parameters. " +
+  file_path: z.string().optional().describe(
+    "Full local Mac path to an Excel (.xlsx/.xls) or JSON file containing Revit element parameters. " +
+    "If omitted, falls back to the BIM_DEFAULT_FILE env var set in Claude Desktop config. " +
     "E.g. ~/Downloads/model.xlsx or /Users/you/Work Items/model.xlsx"
   ),
   model_name: z.string().optional().describe(
@@ -67,14 +70,47 @@ function safeNum(val: unknown): number | null {
 // ── Handler ────────────────────────────────────────────────────────────────
 
 export async function handleExtractBimData(input: ExtractBimDataInput): Promise<ExtractBimDataOutput> {
-  const filePath = resolveHome(input.file_path);
+  const rawPath = input.file_path || DEFAULT_BIM_FILE;
+  if (!rawPath) {
+    return { status: "error", error: "No file_path provided and BIM_DEFAULT_FILE env var is not set. Add it to the workflow-builder env in Claude Desktop config.", model_name: "", file_path: "", total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0, elements: [] };
+  }
 
+  const filePath = resolveHome(rawPath);
   if (!existsSync(filePath)) {
     return { status: "error", error: `File not found: ${filePath}`, model_name: "", file_path: filePath, total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0, elements: [] };
   }
 
-  // Use Python + openpyxl to read the Excel file (avoids xlsx npm dependency)
-  const pyScript = `
+  const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+
+  let rawRows: (string | null)[][];
+
+  if (ext === "json") {
+    // JSON: expect array of objects — convert to header+rows format
+    const pyScript = `
+import json, sys
+data = json.load(open(sys.argv[1]))
+if not data: print(json.dumps([])); exit()
+headers = list(data[0].keys())
+rows = [[str(r.get(h)) if r.get(h) is not None else None for h in headers] for r in data]
+print(json.dumps([headers] + rows))
+`.trim();
+    try {
+      const output = execSync(`python3 -c '${pyScript.replace(/'/g, "'\\''")}' '${filePath.replace(/'/g, "'\\''")}'`, { maxBuffer: 50 * 1024 * 1024 });
+      rawRows = JSON.parse(output.toString());
+    } catch (e) {
+      return { status: "error", error: `Failed to read JSON: ${String(e)}`, model_name: "", file_path: filePath, total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0, elements: [] };
+    }
+  } else {
+    // Excel: .xlsx or .xls — use openpyxl (.xlsx) or xlrd (.xls)
+    const pyScript = ext === "xls"
+      ? `
+import xlrd, json, sys
+wb = xlrd.open_workbook(sys.argv[1])
+ws = wb.sheet_by_index(0)
+rows = [ws.row_values(i) for i in range(ws.nrows)]
+print(json.dumps([[str(c) if c is not None and c != '' else None for c in r] for r in rows]))
+`.trim()
+      : `
 import openpyxl, json, sys
 wb = openpyxl.load_workbook(sys.argv[1], read_only=True, data_only=True)
 ws = wb.active
@@ -82,12 +118,12 @@ rows = list(ws.iter_rows(values_only=True))
 print(json.dumps([[str(c) if c is not None else None for c in r] for r in rows]))
 `.trim();
 
-  let rawRows: (string | null)[][];
-  try {
-    const output = execSync(`python3 -c '${pyScript.replace(/'/g, "'\\''")}' '${filePath.replace(/'/g, "'\\''")}'`, { maxBuffer: 50 * 1024 * 1024 });
-    rawRows = JSON.parse(output.toString());
-  } catch (e) {
-    return { status: "error", error: `Failed to read Excel: ${String(e)}`, model_name: "", file_path: filePath, total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0, elements: [] };
+    try {
+      const output = execSync(`python3 -c '${pyScript.replace(/'/g, "'\\''")}' '${filePath.replace(/'/g, "'\\''")}'`, { maxBuffer: 50 * 1024 * 1024 });
+      rawRows = JSON.parse(output.toString());
+    } catch (e) {
+      return { status: "error", error: `Failed to read Excel: ${String(e)}`, model_name: "", file_path: filePath, total_elements: 0, categories: {}, levels: {}, elements_with_comments: 0, structural_count: 0, elements: [] };
+    }
   }
 
   if (rawRows.length < 2) {
