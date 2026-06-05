@@ -172,10 +172,16 @@ export async function createActivityAlias(
 export async function ensureBucket(
   token: string,
   bucketKey: string,
-  policy: "transient" | "temporary" | "persistent" = "transient"
+  policy: "transient" | "temporary" | "persistent" = "transient",
+  region?: string
 ): Promise<void> {
+  // x-ads-region routes the bucket to the right data shard; the existence check
+  // must carry it too, or a CAN bucket 404s when queried against the US shard.
+  const regionHeader: Record<string, string> = region
+    ? { "x-ads-region": region.toUpperCase() }
+    : {};
   const check = await fetchWithTimeout(`${OSS_BASE}/buckets/${bucketKey}/details`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, ...regionHeader },
   }, 15_000);
   if (check.ok) return;
   if (check.status !== 404) {
@@ -187,6 +193,7 @@ export async function ensureBucket(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      ...regionHeader,
     },
     body: JSON.stringify({ bucketKey, policyKey: policy }),
   }, 15_000);
