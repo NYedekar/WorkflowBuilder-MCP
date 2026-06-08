@@ -1,6 +1,52 @@
 === Workflow Builder MCP ===
 
-⚡ PRE-FLIGHT — RUN THIS CHECK BEFORE ANY OTHER RULE, TOOL CALL, OR REASONING ⚡
+⚡ PRE-FLIGHT CHECK 1 — BIM DASHBOARD ROUTING (runs FIRST, before ALL other rules) ⚡
+
+STEP A — Check for BIM dashboard trigger phrases (case-insensitive):
+  "BIM dashboard", "update dashboard", "push to dashboard", "update the dashboard",
+  "push data", "send to Lovable", "send to Supabase", "Demoland", "lovable.app",
+  "load into dashboard", "extract and update dashboard", "dashboard update"
+
+  IF NONE of these phrases found → skip this block entirely, proceed to Pre-Flight Check 2.
+
+STEP B — If a dashboard phrase WAS found, check for APS file extensions (.rvt, .dwg, .ipt, etc.):
+
+  SUB-CASE B1 — No APS file extension in the message (pure local/file-already-exists flow):
+    → LOCAL + SUPABASE ONLY. Do NOT call authenticate_aps, get_capability, process_file.
+    → GO DIRECTLY to CASE 2 PATH A in the BIM DASHBOARD section below.
+    → extract_bim_data auto-picks the latest .xlsx/.xls/.json from BIM_DATA_DIR.
+
+  SUB-CASE B2 — APS file extension IS present (e.g. .rvt file mentioned with dashboard update):
+    → This is a COMBINED APS-extraction + dashboard-push flow. Run these steps IN ORDER:
+    
+    Step 1 (APS): authenticate_aps + get_capability("extract revit parameters metadata")
+    Step 2 (APS): process_file(file_path, RevitExtractor or similar)
+    Step 3 (APS): poll get_workflow_status until success
+    Step 4 (SAVE): EXACTLY ONE get_result call — save the file directly, NO inline read first.
+                   ⛔ Do NOT call get_result without save_to to "preview" the content first — that wastes 50K tokens.
+                   ⛔ Do NOT call get_result twice (once for read, once for save) — ONE call only.
+                   save_to is a FOLDER path; put the filename in save_filename separately:
+                     save_to="/Users/yedekan/Design_Files/BIM_Data"
+                     save_filename="<ModelStem>_parameters.json"
+                   where <ModelStem> is the RVT filename without extension (e.g. "Demoland_BLDG1").
+                   Full example: save_to="/Users/yedekan/Design_Files/BIM_Data", save_filename="Demoland_BLDG1_parameters.json"
+                   ⛔ Do NOT save to ~/Downloads/ — the save_to folder MUST be /Users/yedekan/Design_Files/BIM_Data.
+                   ⛔ Do NOT put the filename inside save_to — save_to is the FOLDER, save_filename is the filename.
+                   ⛔ Do NOT use read_content:true — this skips the save and returns inline instead.
+                   ⛔ Do NOT save as .csv — the extractor outputs JSON; save_filename MUST end in .json.
+                   ⛔ Do NOT convert JSON → CSV → XLSX. extract_bim_data reads JSON natively; no conversion needed.
+                   Use the saved_to path from the response as the input to extract_bim_data in step 5.
+    Step 5 (BIM): extract_bim_data(file_path=<the .json saved_to path from step 4>)
+                   — the nested RevitExtractor JSON format is auto-flattened (no manual parsing needed).
+                   ⛔ extract_bim_data does NOT accept .csv files. If you saved a .csv by mistake, re-run step 4 and save as .json.
+    Step 6 (BIM): push_to_bim_dashboard(model_name, data_file, ...) → proceed immediately, no pause.
+                   → auto-opens https://demoland.lovable.app/
+    Step 7 (REQUIRED): record_token_usage — this step is MANDATORY. The combined flow ends here.
+                   ⛔ Do NOT skip record_token_usage even if get_result used is_last_output=false earlier.
+                   ⛔ is_last_output=false on get_result suppresses the auto-record — call this manually.
+                   Pass estimated_input_tokens + estimated_output_tokens for the full session.
+
+⚡ PRE-FLIGHT CHECK 2 — SKILL INVOCATION (runs SECOND, before mandatory trigger) ⚡
 Scan the user's latest message for a "/kebab-slug" token: a "/" followed by lowercase letters, digits,
 and hyphens only, with NO further "/" and NO "." (e.g. /dwg-to-pdf-extract-layers-and-blocks).
   • IF a /slug token is present (anywhere in the message — start, after "Execute"/"Run"/"Use", etc.):
@@ -57,8 +103,10 @@ Also honor explicit phrasings — "run my <name> workflow/skill", "use the <name
 — with the SAME path (load tools → list_saved_workflows → run_saved_workflow). Do NOT call
 list_saved_workflows on ordinary file tasks that lack a /slug or an explicit "run my saved …" signal.
 
-MANDATORY TRIGGER — call get_capability as your VERY FIRST action (UNLESS the message is a /slug skill
-invocation per SKILL INVOCATION above, which takes precedence) — before any response, any reasoning, any bash, any Python — when ANY of these file extensions appear anywhere in the conversation — attached, typed as a path, or mentioned by name:
+MANDATORY TRIGGER — call get_capability as your VERY FIRST action (UNLESS Pre-Flight Check 1 BIM
+Dashboard override fired, OR the message is a /slug skill invocation — both take precedence over this
+trigger) — before any response, any reasoning, any bash, any Python — when ANY of these file extensions
+appear anywhere in the conversation — attached, typed as a path, or mentioned by name:
 
 RVT RFA RTE RFT DWG DXF DWT DWS DWF DWFX IPT IAM IDW IPN IDE F3D F3Z CAM360 MAX MA MB NWD NWF NWC IFC FBX STEP STP IGES IGS SAT JT WIRE IWMODEL IMX NAS BDF FEM OP2 RCP RCS PTS E57 LAS LAZ ADSK ADSKLIB ATF ASM SMT SMB OBJ STL
 
@@ -364,71 +412,59 @@ steps, threads step outputs, and runs each via execute_workflow — no re-planni
 
 ── BIM DASHBOARD — extract_bim_data + push_to_bim_dashboard ────────────
 
-These are TWO SEPARATE tools. Read intent carefully before deciding which to call.
+These tools are governed by PRE-FLIGHT CHECK 1 at the top of these instructions.
+Always re-read PRE-FLIGHT CHECK 1 before acting on any BIM dashboard request.
 
-── CASE 1: Extract / download data only (NO dashboard update) ───────────
+── CASE 1: Extract / inspect data only (NO dashboard update) ────────────
 
-TRIGGER — user wants to read, download, or inspect BIM data WITHOUT updating the dashboard:
-  • "extract BIM data from [file]"
-  • "download the data from [file]"
-  • "read the parameters from [file]"
-  • "show me what's in [file]"
-  • "get the element data" (no mention of dashboard/update/push)
+TRIGGER — user wants to read or inspect BIM data WITHOUT pushing to the dashboard:
+  "extract BIM data", "read the parameters", "show me what's in [file]",
+  "get the element data" — with NO mention of dashboard/update/push/Lovable/Supabase.
 
 ACTION: call extract_bim_data(file_path) ONLY.
-  • Present the summary to the user.
-  • Do NOT call push_to_bim_dashboard.
-  • Do NOT ask "should I push to the dashboard?" unless the user signals interest.
+  • For RVT/DWG files: ⛔ extract_bim_data cannot read binary Revit files.
+    Run APS RevitExtractor first (get_capability → process_file → poll → get_result save to
+    /Users/yedekan/Design_Files/BIM_Data/<name>.json), THEN call extract_bim_data on the saved JSON.
+  • For .xlsx / .xls / .json files: call extract_bim_data(file_path) directly.
+  • Present the summary. Do NOT call push_to_bim_dashboard.
 
 ── CASE 2: Extract + update dashboard (full flow) ───────────────────────
 
-TRIGGER — user explicitly mentions dashboard, Supabase, Lovable, or update:
-  • "update the BIM dashboard"
-  • "push to dashboard" / "update the dashboard"
-  • "extract and update dashboard"
-  • "load [file] into the dashboard"
-  • "send data to Lovable / Supabase / Demoland"
-  • references a .xlsx file AND uses words like "dashboard", "update", "push", "send", "live"
+TRIGGER — user mentions: "update the BIM dashboard", "push to dashboard",
+  "load into dashboard", "send to Lovable/Supabase/Demoland", "extract and update dashboard".
 
-DO NOT call get_capability or authenticate_aps — local-file + Supabase only, no APS required.
+TWO PATHS depending on the SOURCE FILE:
 
-TWO-STEP FLOW (human-touch gate between steps — mandatory):
+  PATH A — Source is .xlsx / .xls / .json (file already on disk, no APS needed):
+    ⛔ Do NOT call authenticate_aps, get_capability, process_file, or upload_file.
+    Step 1: extract_bim_data(file_path?)  ← file_path optional; auto-picks latest from BIM_DATA_DIR
+    Step 2: push_to_bim_dashboard(model_name, data_file, ...)
+            → proceed immediately after extraction — no pause, no confirmation needed.
+            → call record_token_usage after push_to_bim_dashboard returns (no get_result in this path).
 
-  Step 1 — extract_bim_data(file_path?, model_name?)
-    • file_path is OPTIONAL — if the user does not provide one, omit it and the tool
-      automatically uses the BIM_DEFAULT_FILE env var (pre-configured in Claude Desktop).
-    • Supported formats: .xlsx, .xls, .json
-    • Reads the Excel file locally via Python/openpyxl.
-    • Returns: total_elements, categories (dict), levels (dict),
-      elements_with_comments count, structural_count, and the full elements[].
-    • PRESENT the summary to the user in a clean formatted block:
-        ┌─────────────────────────────────────────────┐
-        │ Model:    <model_name>                      │
-        │ Elements: <total> across <N> categories     │
-        │ Top:      Walls(180), Columns(176), ...     │
-        │ Levels:   4 — Entry Level, 02-Floor, ...    │
-        │ Comments: <N> elements  Structural: <N>     │
-        └─────────────────────────────────────────────┘
-      Then ask: "Anything to correct before I push to the dashboard?"
-
-  ── HUMAN TOUCH GATE ─────────────────────────────────────────────────────
-    Wait for user response. Apply any corrections they mention
-    (e.g. change model_name, set discipline, add reviewer_notes).
-    When the user says "looks good", "save it", "push it", "go ahead" → proceed to Step 2.
-  ─────────────────────────────────────────────────────────────────────────
-
-  Step 2 — push_to_bim_dashboard(model_name, data_file, discipline?, reviewer_notes?, ...)
-    • Pass the data_file path returned by extract_bim_data — do NOT pass elements directly.
-    • Pass any corrections from the human-touch gate (model_name, reviewer_notes, discipline).
-    • The tool upserts the model, inserts a run log, batch-inserts all elements into Supabase,
-      then AUTO-OPENS https://demoland.lovable.app/ in the browser.
-    • On success, report: "Pushed <N> elements to the dashboard. Opening now…"
+  PATH B — Source is an RVT / DWG / IFC or other APS-format file:
+    Step 1: authenticate_aps + get_capability("extract revit parameters metadata")
+    Step 1b: Present execution plan before uploading anything — output this block then proceed immediately:
+             ──────────────────────────────────────────────────────
+             BIM Dashboard update — execution plan:
+               APS extraction  · <capability_id> / <operation_id>  · CASE C (single file)
+               Save output     · /Users/yedekan/Design_Files/BIM_Data/<ModelStem>_parameters.json
+               Dashboard push  · push_to_bim_dashboard → demoland.lovable.app
+             Proceeding now…
+             ──────────────────────────────────────────────────────
+    Step 2: process_file(file_path, RevitExtractor)
+    Step 3: poll get_workflow_status until success
+    Step 4: get_result → save_to="/Users/yedekan/Design_Files/BIM_Data/<ModelStem>_parameters.json"
+            ⛔ ONE call only. No read_content:true. No save to ~/Downloads or /tmp.
+            ⛔ Put the full filename IN the save_to path — do not use save_filename separately.
+    Step 5: extract_bim_data(file_path=<path from step 4>)  ← nested RevitExtractor JSON auto-handled
+    Step 6: push_to_bim_dashboard(model_name, data_file, discipline, file_type="RVT", ...)
+            → proceed immediately — no pause, no confirmation needed.
+            → auto-opens https://demoland.lovable.app/
+    Step 7: record_token_usage  ← PATH B ends here with push, not get_result; call token tracking now.
 
 IMPORTANT RULES:
-  • NEVER call push_to_bim_dashboard unless the user explicitly asked to update the dashboard.
-  • NEVER skip the human-touch gate in Case 2 — always show the summary and wait for approval.
-  • ALWAYS pass data_file (not elements) to push_to_bim_dashboard — the file was written by extract_bim_data.
-  • If push_to_bim_dashboard returns status="error" mentioning SUPABASE_URL:
-    → Tell user to add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to the workflow-builder
-      env in ~/Library/Application Support/Claude/claude_desktop_config.json and restart.
+  • ALWAYS pass data_file (not elements) to push_to_bim_dashboard.
   • The dashboard URL is always https://demoland.lovable.app/
+  • If push returns error mentioning SUPABASE_URL: tell user to add SUPABASE_URL +
+    SUPABASE_SERVICE_ROLE_KEY to workflow-builder env in claude_desktop_config.json.

@@ -56,13 +56,67 @@ export async function handleExtractBimData(input) {
     const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
     let rawRows;
     if (ext === "json") {
-        // JSON: expect array of objects — convert to header+rows format
+        // JSON: handles two formats:
+        //   1. Flat array of objects: [{...}, {...}]  (simple case)
+        //   2. Nested RevitExtractor format: {"ProjectInfo":{}, "Categories":{"Walls":[{...}], ...}}
         const pyScript = `
 import json, sys
+
+def flatten_revit_extractor(data):
+    """Flatten the nested RevitExtractor JSON format into a flat array of element dicts."""
+    elements = []
+    categories = data.get('Categories', {})
+    for cat_name, items in categories.items():
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            # RevitExtractor format: root has ElementId + FamilyType,
+            # params live in InstanceParameters (preferred) and TypeParameters (fallback)
+            inst = item.get('InstanceParameters', item.get('instanceParameters', {}))
+            typ  = item.get('TypeParameters',    item.get('typeParameters',    {}))
+            # Merge: instance values take precedence over type values; both override root
+            params = {**typ, **inst}
+            elem = {
+                'Category':     cat_name,
+                'ElementId':    item.get('ElementId') or item.get('elementId'),
+                'Family':       inst.get('Family') or inst.get('family') or typ.get('Family'),
+                'FamilyType':   item.get('FamilyType') or item.get('familyType') or params.get('Type Name'),
+                'Level':        params.get('Base Constraint') or params.get('Level') or params.get('level'),
+                'Phase Created':params.get('Phase Created') or params.get('phaseCreated'),
+                'Comments':     params.get('Comments') or params.get('comments'),
+                'Mark':         params.get('Mark') or params.get('mark'),
+                'Area':         params.get('Area') or params.get('area'),
+                'Volume':       params.get('Volume') or params.get('volume'),
+                'Length':       params.get('Length') or params.get('length'),
+                'Structural':   params.get('Structural') or params.get('structural'),
+            }
+            elements.append(elem)
+    return elements
+
 data = json.load(open(sys.argv[1]))
-if not data: print(json.dumps([])); exit()
-headers = list(data[0].keys())
-rows = [[str(r.get(h)) if r.get(h) is not None else None for h in headers] for r in data]
+
+# Detect format
+if isinstance(data, list):
+    elements = data
+elif isinstance(data, dict) and 'Categories' in data:
+    elements = flatten_revit_extractor(data)
+elif isinstance(data, dict):
+    # Try to find any list value that looks like elements
+    for v in data.values():
+        if isinstance(v, list) and len(v) > 0 and isinstance(v[0], dict):
+            elements = v
+            break
+    else:
+        elements = []
+else:
+    elements = []
+
+if not elements:
+    print(json.dumps([]))
+    exit()
+
+headers = list(elements[0].keys())
+rows = [[str(r.get(h)) if r.get(h) is not None else None for h in headers] for r in elements]
 print(json.dumps([headers] + rows))
 `.trim();
         try {

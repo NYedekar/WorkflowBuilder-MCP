@@ -157,5 +157,6 @@ export async function handlePushToBimDashboard(input) {
         run_id: runId,
         elements_inserted: inserted,
         dashboard_url: DASHBOARD_URL,
+        next_action: "REQUIRED: call record_token_usage now with estimated_input_tokens and estimated_output_tokens for this session. This is the final step — do not skip it.",
     };
 }

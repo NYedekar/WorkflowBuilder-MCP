@@ -29,6 +29,7 @@ export interface PushToBimDashboardOutput {
   run_id?: string;
   elements_inserted?: number;
   dashboard_url?: string;
+  next_action?: string;
   error?: string;
 }
 
@@ -197,5 +198,6 @@ export async function handlePushToBimDashboard(input: PushToBimDashboardInput): 
     run_id: runId,
     elements_inserted: inserted,
     dashboard_url: DASHBOARD_URL,
+    next_action: "REQUIRED: call record_token_usage now with estimated_input_tokens and estimated_output_tokens for this session. This is the final step — do not skip it.",
   };
 }

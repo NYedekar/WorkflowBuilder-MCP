@@ -450,10 +450,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "extract_bim_data",
         description:
-          "Read a local Excel (.xlsx) file containing Revit element parameters and extract structured BIM data. " +
+          "Read a local Excel (.xlsx/.xls) OR JSON file containing Revit element parameters and extract structured BIM data. " +
+          "Accepts: .xlsx/.xls (Excel export from Revit) OR .json (RevitExtractor DA output — auto-flattened). Does NOT accept .csv. " +
           "Returns a summary (element count, categories, levels) and the full elements array for human review. " +
           "Call this FIRST — present the summary to the user for review/approval before calling push_to_bim_dashboard. " +
-          "Supports any Excel export from Revit with columns: Category, ElementId, FamilyType, Family, Level, Phase Created, Comments, Mark, Area, Volume, Length, Structural.",
+          "Supports columns: Category, ElementId, FamilyType, Family, Level, Phase Created, Comments, Mark, Area, Volume, Length, Structural.",
         inputSchema: zodToJsonSchema(extractBimDataSchema),
       },
       {
