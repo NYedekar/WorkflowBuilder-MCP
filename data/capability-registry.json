@@ -1,26 +1,26 @@
 {
   "registry": "Capability Registry",
-  "schemaVersion": "1.9.9-rest",
+  "schemaVersion": "2.1.0-rest",
   "generatedAt": "2026-05-19T18:22:33.411Z",
-  "patchedAt": "2026-06-03T00:00:00Z",
-  "patchNotes": "v1.9.8 — Three additions from APIInteractionsbyCategory.csv gap analysis: (1) ACC Cost Management expanded from 1 to 12 capabilities covering budgets, contracts, cost items, change orders, expenses, main contracts, payments & schedule-of-values, time sheets, performance tracking, attachments, segments/templates, and workflow actions — unmatchedOperations promoted to proper capabilities; (2) ACC BuildingConnected & TradeTapp added as capability group 06.08.20 with 15 capabilities covering projects, costs, team members, bid packages, invites, bids, bid forms, scope-specific bid forms, opportunities, contacts, users, reference data, opportunity-project pairs, financials, and qualifications; (3) Tandem Data API added to Data-APIs domain with 6 capability groups covering documents, groups & twins, model data, model streams, time-series IoT streams, and twin lifecycle. All new operations marked callable:true. | v1.9.9 — Added 9 Autodesk-shared public activities: AutoCAD (+5: PlotToPDF_v2, ExportDWG, ExtractThumbnail, ExportLayers, ExportBlockData), Revit (+2 new group: ExtractThumbnail, ExportIFC), Inventor (+2 new group: ExtractThumbnail, ExportBOM), 3dsMax (+1: ExtractThumbnail). All callable:true, SAFE. | v2.0.0 — Added revit:RevitParameterUpdater (UpdateRevitParameters activity): updates Revit element parameters from CSV/XLSX/JSON with full_file delta detection, delta_file, and text_input modes; modifies model in-place and outputs result.rvt + structured change log. | v2.1.0 — Added inventor:InventorBOMExtractor custom AppBundle (ExtractInventorBOM+prod) to inventor:custom-app-bundles. Extracts full hierarchical BOM from Inventor IAM assemblies to result.json.",
+  "patchedAt": "2026-06-10T00:00:00Z",
+  "patchNotes": "v1.9.8 — Three additions from APIInteractionsbyCategory.csv gap analysis: (1) ACC Cost Management expanded from 1 to 12 capabilities covering budgets, contracts, cost items, change orders, expenses, main contracts, payments & schedule-of-values, time sheets, performance tracking, attachments, segments/templates, and workflow actions — unmatchedOperations promoted to proper capabilities; (2) ACC BuildingConnected & TradeTapp added as capability group 06.08.20 with 15 capabilities covering projects, costs, team members, bid packages, invites, bids, bid forms, scope-specific bid forms, opportunities, contacts, users, reference data, opportunity-project pairs, financials, and qualifications; (3) Tandem Data API added to Data-APIs domain with 6 capability groups covering documents, groups & twins, model data, model streams, time-series IoT streams, and twin lifecycle. All new operations marked callable:true. | v1.9.9 — Added 9 Autodesk-shared public activities: AutoCAD (+5: PlotToPDF_v2, ExportDWG, ExtractThumbnail, ExportLayers, ExportBlockData), Revit (+2 new group: ExtractThumbnail, ExportIFC), Inventor (+2 new group: ExtractThumbnail, ExportBOM), 3dsMax (+1: ExtractThumbnail). All callable:true, SAFE. | v2.0.0 — Added revit:RevitParameterUpdater (UpdateRevitParameters activity): updates Revit element parameters from CSV/XLSX/JSON with full_file delta detection, delta_file, and text_input modes; modifies model in-place and outputs result.rvt + structured change log. | v2.1.0 — Added inventor:InventorBOMExtractor custom AppBundle (ExtractInventorBOM+prod) to inventor:custom-app-bundles. Extracts full hierarchical BOM from Inventor IAM assemblies to result.json. | v2.1.0-rest (reconciliation 2026-06-10) — Merged standalone 1.9.9-rest with the live MCP working copy. Re-added public inventor:InventorExportBOM (export-bill-of-materials, SAFE/read) into inventor:public-activities alongside custom inventor:InventorBOMExtractor. Superset of both copies. schemaVersion string advanced from stale 1.9.9-rest to match v2.0.0/v2.1.0 patch history.",
   "summary": {
     "domains": 5,
     "engines": 5,
     "apis": 25,
-    "capabilityGroups": 153,
-    "capabilities": 318,
-    "operations": 1589,
+    "capabilityGroups": 154,
+    "capabilities": 323,
+    "operations": 1594,
     "risk": {
-      "SAFE": 636,
-      "REVIEW": 899,
+      "SAFE": 641,
+      "REVIEW": 894,
       "DESTRUCTIVE": 53
     },
     "byDomain": {
       "Engine-APIs": {
-        "capabilities": 170,
-        "operations": 860,
-        "capabilityGroups": 56,
+        "capabilities": 175,
+        "operations": 865,
+        "capabilityGroups": 57,
         "apis": 0
       },
       "Product-APIs": {
@@ -50,24 +50,24 @@
     },
     "byProduct": {
       "AutoCAD": {
-        "capabilities": 38,
-        "operations": 210
+        "capabilities": 45,
+        "operations": 217
       },
       "Revit": {
-        "capabilities": 37,
-        "operations": 184
+        "capabilities": 41,
+        "operations": 188
       },
       "Fusion": {
         "capabilities": 32,
         "operations": 190
       },
       "Inventor": {
-        "capabilities": 41,
-        "operations": 219
+        "capabilities": 44,
+        "operations": 222
       },
       "3dsMax": {
-        "capabilities": 12,
-        "operations": 47
+        "capabilities": 13,
+        "operations": 48
       },
       "Autodesk Forma": {
         "capabilities": 4,
@@ -77,7 +77,7 @@
         "capabilities": 11,
         "operations": 37
       },
-      "Autodesk Flow / M&E": {
+      "Autodesk Flow Graph Engine": {
         "capabilities": 2,
         "operations": 13
       },
@@ -89,13 +89,17 @@
         "capabilities": 3,
         "operations": 30
       },
-      "Autodesk Construction Cloud API": {
+      "Autodesk Construction Cloud": {
         "capabilities": 59,
         "operations": 295
       },
+      "Autodesk Manufacturing Data Model (Fusion)": {
+        "capabilities": 5,
+        "operations": 21
+      },
       "Autodesk Fusion": {
-        "capabilities": 8,
-        "operations": 42
+        "capabilities": 3,
+        "operations": 21
       },
       "Autodesk Platform Services": {
         "capabilities": 51,
@@ -106,7 +110,9 @@
         "operations": 25
       }
     },
-    "excludedOperations": 38
+    "excludedOperations": 38,
+    "unmatchedOperations": 48,
+    "countingNote": "capabilities & operations count capability-attached entities only; unmatchedOperations (parked, not yet assigned to a capability) and excludedOperations are tracked separately."
   },
   "schemaConstraints": {
     "operationIdUniqueness": true,
@@ -29717,6 +29723,96 @@
                     }
                   ],
                   "note": "Activity: Inventor.ExtractThumbnail+prod. Inventor part or assembly thumbnail / preview. Keywords: thumbnail preview PNG IPT IAM Inventor part assembly image render."
+                },
+                {
+                  "id": "inventor:InventorExportBOM",
+                  "alias": "InventorExportBOM",
+                  "qualifiedName": "com.autodesk.public.inventor.InventorExportBOM",
+                  "version": "1.0.0",
+                  "product": "Inventor",
+                  "groupId": "inventor:public-activities",
+                  "engine": "Autodesk.Inventor+2022, +2023, +2024, +2025, +2026",
+                  "risk": "SAFE",
+                  "ioShape": "sourceFile.iam → result.json",
+                  "activityRef": "Inventor.ExportBOM+prod",
+                  "accessPattern": "DA-PublicActivity",
+                  "runtimeRouting": {
+                    "supportsMultipleOperations": false
+                  },
+                  "contract": {
+                    "identity": {
+                      "name": "InventorExportBOM",
+                      "group": "public-activities",
+                      "scope": "Autodesk Public Activity"
+                    },
+                    "io": {
+                      "input": "sourceFile.iam",
+                      "output": "result.json"
+                    },
+                    "execution": {
+                      "accessPattern": "DA-PublicActivity",
+                      "interface": "Autodesk.Inventor+2022, +2023, +2024, +2025, +2026",
+                      "activityRef": "Inventor.ExportBOM+prod",
+                      "note": "No custom AppBundle required — Autodesk-published activity called directly."
+                    },
+                    "governance": {
+                      "riskLevel": "SAFE",
+                      "operationType": "read",
+                      "approval": "Auto-execute"
+                    },
+                    "consumers": {
+                      "targets": [
+                        "AI Agents",
+                        "Developers"
+                      ],
+                      "discovery": "get_capability() → Registry match"
+                    }
+                  },
+                  "description": "Extract the BOM from an Inventor assembly (IAM) as JSON (part number, description, quantity, material, mass). Input must be an assembly (IAM), not a part (IPT). No custom AppBundle required.",
+                  "apiId": "engine:Inventor",
+                  "capabilityGroupId": "inventor:public-activities",
+                  "authFlows": [
+                    "2LO-client-credentials"
+                  ],
+                  "operations": [
+                    {
+                      "operationId": "export-bill-of-materials",
+                      "displayName": "Export Bill of Materials",
+                      "description": "Extract the BOM from an Inventor assembly (IAM) as a JSON array with part number, description, quantity, material, and mass for each component.",
+                      "capabilityId": "inventor:InventorExportBOM",
+                      "groupId": "inventor:public-activities",
+                      "product": "Inventor",
+                      "engine": "Autodesk.Inventor+2022, +2023, +2024, +2025, +2026",
+                      "risk": "SAFE",
+                      "configSchema": null,
+                      "outputContract": "result.json",
+                      "ioShape": "sourceFile.iam → result.json",
+                      "modifiesFile": false,
+                      "readOnly": true,
+                      "destructive": false,
+                      "globalOperationId": "inventor.public.export-bill-of-materials",
+                      "callable": true,
+                      "effect": "read",
+                      "authScopes": [
+                        "code:all"
+                      ],
+                      "sourceVerificationStatus": "UNVERIFIED",
+                      "workItemTemplate": {
+                        "activityId": "Inventor.ExportBOM+prod",
+                        "arguments": {
+                          "InventorDoc": {
+                            "url": "{signed-input-url}",
+                            "verb": "get"
+                          },
+                          "Result": {
+                            "url": "{signed-output-url}",
+                            "verb": "put"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "note": "Activity: Inventor.ExportBOM+prod. Inventor assembly Bill of Materials export. Keywords: BOM bill of materials assembly IAM parts list quantity mass ERP PLM JSON."
                 }
               ]
             },
